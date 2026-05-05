@@ -1,21 +1,30 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, doc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyDLVsEFu1aubVt6yOAwjFiAceBOQ_t3QXw",    
-    authDomain: "vmf-mdt.firebaseapp.com",
-    projectId: "vmf-mdt",
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyDLVsEFu1aubVt6yOAwjFiAceBOQ_t3QXw",
+  authDomain: "vmf-mdt.firebaseapp.com",
+  projectId: "vmf-mdt",
+};
 
-  const app = initializeApp(firebaseConfig);
-  window.db = getFirestore(app);
-  window.fsLib = { collection, doc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy };
-  window.firebaseReady = true;
-  window.dispatchEvent(new Event('firebase-ready'));
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// FIREBASE HELPERS
+const fb = {
+  listen: (col, cb) => onSnapshot(collection(db, col), snap => {
+    cb(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  }),
+  add: (col, data) => addDoc(collection(db, col), { ...data, createdAt: serverTimestamp() }),
+  set: (col, id, data) => setDoc(doc(db, col, id), data, { merge: true }),
+  delete: (col, id) => deleteDoc(doc(db, col, id))
+};
+
+window.fb = fb;
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
