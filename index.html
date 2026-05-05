@@ -5,18 +5,17 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, doc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDLVsEFu1aubVt6yOAwjFiAceBOQ_t3QXw",
-  authDomain: "vmf-mdt.firebaseapp.com",
-  projectId: "vmf-mdt",
-  storageBucket: "vmf-mdt.firebasestorage.app",
-  messagingSenderId: "789136065930",
-  appId: "1:789136065930:web:4e6230f27952c588d13473"
-};
+  const firebaseConfig = {
+    apiKey: "TA_CLE",
+    authDomain: "xxx.firebaseapp.com",
+    projectId: "xxx",
+  };
 
   const app = initializeApp(firebaseConfig);
   window.db = getFirestore(app);
   window.fsLib = { collection, doc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy };
+  window.firebaseReady = true;
+  window.dispatchEvent(new Event('firebase-ready'));
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -298,10 +297,10 @@ const removeSession = (userId) => { const s=getSessions(); delete s[userId]; sav
 const getOnlineUserIds = () => Object.keys(getSessions());
 
 // ─── LOG HELPER ──────────────────────────────────────────────────────────────
-const pushLog = (type, msg, level='info') => {
-  const logs = load(SK.logs, []);
-  const entry = { id:Date.now(), type, msg, level, time:fmtTime(), date:fmtDate() };
-  save(SK.logs, [entry, ...logs].slice(0,200));
+const pushLog = async (type, msg, level='info') => {
+  try {
+    await fbAdd('logs', { type, msg, level, time: fmtTime(), date: fmtDate() });
+  } catch(e) { console.warn('pushLog error', e); }
 };
 
 // ─── MODAL ───────────────────────────────────────────────────────────────────
@@ -320,14 +319,18 @@ function Modal({ title, onClose, children, footer, wide }) {
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 function Dashboard({ currentUser }) {
   const [onlineIds, setOnlineIds] = useState(getOnlineUserIds());
-  const accounts = load(SK.users, DEFAULT_ACCOUNTS);
-  const members = load(SK.members, DEFAULT_MEMBERS);
-  const debts = load(SK.debts, DEFAULT_DEBTS);
-  const anns = load(SK.announcements, DEFAULT_ANNOUNCEMENTS);
+  const [accounts, setAccounts] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [debts, setDebts] = useState([]);
+  const [anns, setAnns] = useState([]);
 
   useEffect(() => {
+    const u1 = fbListen('accounts', setAccounts);
+    const u2 = fbListen('members', setMembers);
+    const u3 = fbListen('debts', setDebts);
+    const u4 = fbListen('announcements', (data) => setAnns(data));
     const t = setInterval(() => setOnlineIds(getOnlineUserIds()), 3000);
-    return () => clearInterval(t);
+    return () => { u1(); u2(); u3(); u4(); clearInterval(t); };
   }, []);
 
   const onlineMembers = accounts
@@ -404,15 +407,17 @@ function Dashboard({ currentUser }) {
 function Members({ currentUser, perms }) {
   const [members, setMembers] = useState([])
   const [onlineIds, setOnlineIds] = useState(getOnlineUserIds());
-  const accounts = load(SK.users, DEFAULT_ACCOUNTS);
+  const [accounts, setAccounts] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editModal, setEditModal] = useState(null);
   const [form, setForm] = useState({ pseudo:'', grade:'Collaborateur', phone:'' });
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
+    const u1 = fbListen('members', setMembers);
+    const u2 = fbListen('accounts', setAccounts);
     const t = setInterval(() => setOnlineIds(getOnlineUserIds()), 3000);
-    return () => clearInterval(t);
+    return () => { u1(); u2(); clearInterval(t); };
   }, []);
 
   const filtered = filter==='all' ? members : members.filter(m=>m.grade===filter);
@@ -421,27 +426,25 @@ function Members({ currentUser, perms }) {
     return acc ? onlineIds.includes(acc.id) : false;
   };
 
-  const addMember = () => {
+  const addMember = async () => {
     if(!form.pseudo) return;
-    const nm = { id:'m'+Date.now(), pseudo:form.pseudo, grade:form.grade, phone:form.phone, joined:new Date().toLocaleDateString('fr'), avatar:form.pseudo[0].toUpperCase(), avatarColor:gradeColor(form.grade) };
-    const updated = [...members, nm];
-    setMembers(updated); save(SK.members, updated);
+    const nm = { pseudo:form.pseudo, grade:form.grade, phone:form.phone, joined:new Date().toLocaleDateString('fr'), avatar:form.pseudo[0].toUpperCase(), avatarColor:gradeColor(form.grade) };
+    await fbAdd('members', nm);
     pushLog('modification', `Nouveau membre ajouté: ${form.pseudo} (${form.grade}) par ${currentUser.pseudo}`, 'info');
     setShowModal(false); setForm({ pseudo:'', grade:'Collaborateur', phone:'' });
   };
 
-  const saveMember = () => {
+  const saveMember = async () => {
     if(!editModal) return;
-    const updated = members.map(m => m.id===editModal.id ? {...editModal} : m);
-    setMembers(updated); save(SK.members, updated);
+    const { id, ...data } = editModal;
+    await fbSet('members', id, data);
     pushLog('modification', `Fiche membre ${editModal.pseudo} modifiée par ${currentUser.pseudo}`, 'info');
     setEditModal(null);
   };
 
-  const deleteMember = (id) => {
+  const deleteMember = async (id) => {
     const m = members.find(x=>x.id===id);
-    const updated = members.filter(x=>x.id!==id);
-    setMembers(updated); save(SK.members, updated);
+    await fbDelete('members', id);
     pushLog('suppression', `Membre ${m?.pseudo} supprimé par ${currentUser.pseudo}`, 'danger');
   };
 
