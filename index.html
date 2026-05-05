@@ -13,8 +13,9 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+window.db = db;
+window.fsLib = { collection, doc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy };
 
-// FIREBASE HELPERS
 const fb = {
   listen: (col, cb) => onSnapshot(collection(db, col), snap => {
     cb(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -144,16 +145,13 @@ window.fb = fb;
   .login-lines{position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(26,37,53,0.3) 40px,rgba(26,37,53,0.3) 41px);background-size:100% 41px;}
   .login-card{background:var(--bg-secondary);border:1px solid var(--border-bright);border-radius:var(--radius-lg);padding:40px;width:360px;position:relative;z-index:1;}
   .login-logo{text-align:center;margin-bottom:32px;}
-  .login-logo-icon{width:56px;height:56px;margin:0 auto 12px;background:var(--vmf-accent);clip-path:polygon(50% 0%,100%25%,100%75%,50%100%,0%75%,0%25%);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#0e0e10;font-family:var(--font-mono);;font-family:var(--font-mono);}
+  .login-logo-icon{width:56px;height:56px;margin:0 auto 12px;background:var(--vmf-accent);clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#0e0e10;font-family:var(--font-mono);}
   .login-title{font-size:22px;font-weight:800;letter-spacing:0.12em;}
   .login-sub{font-size:10px;font-family:var(--font-mono);color:var(--text-muted);letter-spacing:0.2em;margin-top:4px;}
   .login-warning{background:var(--vmf-accent-glow);border:1px solid rgba(192,57,43,0.3);border-radius:var(--radius);padding:10px 12px;font-size:10px;font-family:var(--font-mono);color:var(--vmf-accent);letter-spacing:0.06em;margin-bottom:20px;display:flex;align-items:center;gap:8px;}
   .login-form{display:flex;flex-direction:column;gap:12px;}
   .login-btn{background:var(--vmf-accent);color:#0e0e10;border:none;padding:12px;border-radius:var(--radius);font-size:13px;font-weight:700;font-family:var(--font-main);cursor:pointer;letter-spacing:0.08em;transition:var(--transition);margin-top:4px;}.login-btn:hover{background:#ffffff;}
   .login-err{font-size:11px;font-family:var(--font-mono);color:var(--vmf-accent);text-align:center;min-height:16px;}
-  .notif-panel{position:absolute;top:calc(var(--topbar-h) + 4px);right:8px;width:300px;z-index:100;background:var(--bg-secondary);border:1px solid var(--border-bright);border-radius:var(--radius-lg);overflow:hidden;animation:slideUp 0.2s ease;}
-  .notif-item{padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px;display:flex;gap:10px;align-items:flex-start;}.notif-item:last-child{border-bottom:none;}
-  .notif-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;flex-shrink:0;}
   .chat-main{flex:1;display:flex;flex-direction:column;min-width:0;}
   .chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;}
   .chat-msg{max-width:75%;}.chat-msg.mine{align-self:flex-end;}.chat-msg.theirs{align-self:flex-start;}
@@ -165,7 +163,6 @@ window.fb = fb;
   .chat-input-row{display:flex;gap:8px;}
   .chat-input{flex:1;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;font-size:12px;color:var(--text-primary);font-family:var(--font-main);outline:none;}.chat-input:focus{border-color:var(--vmf-accent);}
   .chat-send-btn{background:var(--vmf-accent);color:#0e0e10;border:none;padding:8px 14px;border-radius:var(--radius);font-size:12px;cursor:pointer;font-weight:600;transition:var(--transition);}.chat-send-btn:hover{background:#ffffff;}
-  .map-wrapper{border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden;height:520px;position:relative;background:var(--bg-tertiary);display:flex;align-items:center;justify-content:center;}
   .progress-bar{height:4px;background:var(--bg-tertiary);border-radius:2px;overflow:hidden;}
   .progress-fill{height:100%;border-radius:2px;transition:width 0.4s ease;}
   .announcement{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:12px;transition:var(--transition);border-left:3px solid;}
@@ -202,46 +199,22 @@ window.fb = fb;
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef, useCallback } = React;
+const { useState, useEffect, useRef } = React;
 
-// ─── STORAGE KEY ────────────────────────────────────────────────────────────
-const SK = {
-  users: 'nexus_users_v1',
-  sessions: 'nexus_sessions_v1',
-  members: 'nexus_members_v1',
-  weapons: 'nexus_weapons_v1',
-  storage: 'nexus_storage_v1',
-  debts: 'nexus_debts_v1',
-  vehicles: 'nexus_vehicles_v1',
-  announcements: 'nexus_announcements_v1',
-  messages: 'nexus_messages_v1',
-  logs: 'nexus_logs_v1',
-  permissions: 'nexus_permissions_v1',
-};
-
-// FIREBASE
-async function fbGetAll(col) {
-  const { collection, getDocs } = window.fsLib;
-  const snap = await getDocs(collection(window.db, col));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+async function fbAdd(col, data) {
+  const { collection, addDoc, serverTimestamp } = window.fsLib;
+  const ref = await addDoc(collection(window.db, col), { ...data, createdAt: serverTimestamp() });
+  return ref.id;
 }
-
 async function fbSet(col, id, data) {
   const { doc, setDoc } = window.fsLib;
   await setDoc(doc(window.db, col, id), data, { merge: true });
 }
-
-async function fbAdd(col, data) {
-  const { collection, addDoc } = window.fsLib;
-  const ref = await addDoc(collection(window.db, col), data);
-  return ref.id;
-}
-
 async function fbDelete(col, id) {
   const { doc, deleteDoc } = window.fsLib;
   await deleteDoc(doc(window.db, col, id));
 }
-
 function fbListen(col, cb) {
   const { collection, onSnapshot } = window.fsLib;
   return onSnapshot(collection(window.db, col), snap => {
@@ -249,25 +222,16 @@ function fbListen(col, cb) {
   });
 }
 
-// garde seulement pour petits trucs locaux
-const load = (k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d}};
-const save = (k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
+// Sessions en localStorage (local uniquement — qui est connecté sur CE navigateur)
+const getSessions = () => { try { return JSON.parse(localStorage.getItem('vmf_sessions') || '{}'); } catch { return {}; } };
+const addSession = (userId) => { const s = getSessions(); s[userId] = { userId, since: Date.now() }; localStorage.setItem('vmf_sessions', JSON.stringify(s)); };
+const removeSession = (userId) => { const s = getSessions(); delete s[userId]; localStorage.setItem('vmf_sessions', JSON.stringify(s)); };
+const getOnlineUserIds = () => Object.keys(getSessions());
 
-// ─── DEFAULT DATA ────────────────────────────────────────────────────────────
-const DEFAULT_ACCOUNTS = [
-  { id:'u1', username:'Ghost', password:'ghost2024', memberId:'m1' },
-];
-
-const DEFAULT_MEMBERS = [
-  { id:'m1', pseudo:'Ghost', grade:'Heritier', phone:'06 12 34 56 78', joined:'12/03/2024', avatar:'G', avatarColor:'#c0392b' },
-];
-
-const DEFAULT_WEAPONS = [];
-const DEFAULT_DEBTS = [];
-const DEFAULT_VEHICLES = [];
-const DEFAULT_ANNOUNCEMENTS = [];
-const DEFAULT_MESSAGES = [];
-const DEFAULT_LOGS = [];
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const WEAPON_TYPES = ['couteau','machette','petoire','revolver','batte','hache','marteau','katana','pied de biche','queue de billard','queue de golf','cambu'];
+const GRADES = ['Collaborateur','Syndic','Senechaux','Regent','Heritier'];
+const ITEM_CATEGORIES = ['Arme','Drogue','Argent','Matériel','Véhicule','Document','Autre'];
 
 const DEFAULT_PERMISSIONS = {
   Heritier:  { members_view:true, members_add:true, members_edit:true, weapons_view:true, weapons_add:true, debts_view:true, debts_manage:true, vehicles_view:true, announcements_view:true, announcements_post:true, logs_view:true, permissions_edit:true },
@@ -286,12 +250,10 @@ const PERM_LABELS = {
   logs_view:'Voir les logs', permissions_edit:'Modifier les permissions',
 };
 
-const WEAPON_TYPES = ['couteau','machette','petoire','revolver','batte','hache','marteau','katana','pied de biche','queue de billard','queue de golf','cambu'];
-const GRADES = ['Collaborateur','Syndic','Senechaux','Regent','Heritier'];
-const gradeColor = g => ({ Heritier:'#c0392b', Regent:'#c9a84c', Senechaux:'#00d084', Syndic:'#60a5fa', Collaborateur:'#7a90a8' }[g]||'#7a90a8');
-const gradeClass = g => ({ Heritier:'grade-heritier', Regent:'grade-regent', Senechaux:'grade-senechaux', Syndic:'grade-syndic', Collaborateur:'grade-collaborateur' }[g]||'');
+const gradeColor = g => ({ Heritier:'#c0392b', Regent:'#c9a84c', Senechaux:'#00d084', Syndic:'#60a5fa', Collaborateur:'#7a90a8' }[g] || '#7a90a8');
+const gradeClass = g => ({ Heritier:'grade-heritier', Regent:'grade-regent', Senechaux:'grade-senechaux', Syndic:'grade-syndic', Collaborateur:'grade-collaborateur' }[g] || '');
 const fmtMoney = n => '$' + n.toLocaleString('fr-FR');
-const fmtTime = () => { const now=new Date(); return now.toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); };
+const fmtTime = () => { const now = new Date(); return now.toLocaleTimeString('fr', { hour:'2-digit', minute:'2-digit', second:'2-digit' }); };
 const fmtDate = () => new Date().toISOString().split('T')[0];
 
 const statusBadge = s => {
@@ -299,24 +261,17 @@ const statusBadge = s => {
   return map[s] || <span className="badge badge-gray">{s}</span>;
 };
 
-// ─── SESSIONS (qui est connecté) ─────────────────────────────────────────────
-const getSessions = () => load(SK.sessions, {});
-const addSession = (userId) => { const s=getSessions(); s[userId]={userId,since:Date.now()}; save(SK.sessions,s); };
-const removeSession = (userId) => { const s=getSessions(); delete s[userId]; save(SK.sessions,s); };
-const getOnlineUserIds = () => Object.keys(getSessions());
-
-// ─── LOG HELPER ──────────────────────────────────────────────────────────────
+// ─── LOG HELPER ───────────────────────────────────────────────────────────────
 const pushLog = async (type, msg, level='info') => {
-  try {
-    await fbAdd('logs', { type, msg, level, time: fmtTime(), date: fmtDate() });
-  } catch(e) { console.warn('pushLog error', e); }
+  try { await fbAdd('logs', { type, msg, level, time: fmtTime(), date: fmtDate() }); }
+  catch(e) { console.warn('pushLog error', e); }
 };
 
 // ─── MODAL ───────────────────────────────────────────────────────────────────
 function Modal({ title, onClose, children, footer, wide }) {
   return (
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div className="modal" style={wide?{maxWidth:680}:{}}>
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={wide ? { maxWidth:680 } : {}}>
         <div className="modal-header"><span className="modal-title">{title}</span><button className="modal-close" onClick={onClose}>×</button></div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}
@@ -337,7 +292,7 @@ function Dashboard({ currentUser }) {
     const u1 = fbListen('accounts', setAccounts);
     const u2 = fbListen('members', setMembers);
     const u3 = fbListen('debts', setDebts);
-    const u4 = fbListen('announcements', (data) => setAnns(data));
+    const u4 = fbListen('announcements', data => setAnns(data));
     const t = setInterval(() => setOnlineIds(getOnlineUserIds()), 3000);
     return () => { u1(); u2(); u3(); u4(); clearInterval(t); };
   }, []);
@@ -347,8 +302,8 @@ function Dashboard({ currentUser }) {
     .map(a => members.find(m => m.id === a.memberId))
     .filter(Boolean);
 
-  const unpaidDebts = debts.filter(d=>d.status!=='payé');
-  const totalDebt = unpaidDebts.reduce((s,d)=>s+d.amount-d.paid,0);
+  const unpaidDebts = debts.filter(d => d.status !== 'payé');
+  const totalDebt = unpaidDebts.reduce((s, d) => s + (d.amount - d.paid), 0);
 
   return (
     <div className="page-enter">
@@ -372,39 +327,35 @@ function Dashboard({ currentUser }) {
           <span className="stat-icon">🔑</span>
         </div>
       </div>
-
-      <div className="grid-2" style={{marginBottom:16}}>
+      <div className="grid-2" style={{ marginBottom:16 }}>
         <div className="card">
           <div className="card-header"><span className="card-title">📢 Dernières Annonces</span></div>
-          <div className="card-body" style={{padding:'12px 16px'}}>
-            {anns.length === 0 && <div style={{fontSize:12,color:'var(--text-muted)',textAlign:'center',padding:'20px 0'}}>Aucune annonce</div>}
-            {anns.slice(0,3).map(a=>(
+          <div className="card-body" style={{ padding:'12px 16px' }}>
+            {anns.length === 0 && <div style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', padding:'20px 0' }}>Aucune annonce</div>}
+            {anns.slice(0, 3).map(a => (
               <div className={`announcement ${a.priority}`} key={a.id}>
                 <div className="ann-title">{a.title}</div>
-                <div className="ann-body">{a.content.slice(0,80)}...</div>
+                <div className="ann-body">{(a.content||'').slice(0, 80)}...</div>
                 <div className="ann-meta"><span>{a.author}</span><span>{a.date}</span></div>
               </div>
             ))}
           </div>
         </div>
-
-        <div>
-          <div className="card">
-            <div className="card-header"><span className="card-title">🟢 En Ligne</span><span className="card-subtitle">{onlineMembers.length} connecté{onlineMembers.length>1?'s':''}</span></div>
-            <div className="card-body">
-              {onlineMembers.length === 0
-                ? <div style={{fontSize:12,color:'var(--text-muted)',textAlign:'center',padding:'12px 0'}}>Aucun membre connecté</div>
-                : <div className="members-online">
-                    {onlineMembers.map(m=>(
-                      <div className="member-chip" key={m.id}>
-                        <div className="member-chip-av" style={{background:m.avatarColor,color:'#fff'}}>{m.avatar}</div>
-                        <span>{m.pseudo}</span>
-                        <span style={{fontSize:9,fontFamily:'var(--font-mono)',color:'var(--text-muted)'}} className={gradeClass(m.grade)}>{m.grade}</span>
-                      </div>
-                    ))}
-                  </div>
-              }
-            </div>
+        <div className="card">
+          <div className="card-header"><span className="card-title">🟢 En Ligne</span><span className="card-subtitle">{onlineMembers.length} connecté{onlineMembers.length > 1 ? 's' : ''}</span></div>
+          <div className="card-body">
+            {onlineMembers.length === 0
+              ? <div style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', padding:'12px 0' }}>Aucun membre connecté</div>
+              : <div className="members-online">
+                  {onlineMembers.map(m => (
+                    <div className="member-chip" key={m.id}>
+                      <div className="member-chip-av" style={{ background:m.avatarColor, color:'#fff' }}>{m.avatar}</div>
+                      <span>{m.pseudo}</span>
+                      <span style={{ fontSize:9, fontFamily:'var(--font-mono)', color:'var(--text-muted)' }} className={gradeClass(m.grade)}>{m.grade}</span>
+                    </div>
+                  ))}
+                </div>
+            }
           </div>
         </div>
       </div>
@@ -414,9 +365,9 @@ function Dashboard({ currentUser }) {
 
 // ─── MEMBERS ─────────────────────────────────────────────────────────────────
 function Members({ currentUser, perms }) {
-  const [members, setMembers] = useState([])
-  const [onlineIds, setOnlineIds] = useState(getOnlineUserIds());
+  const [members, setMembers] = useState([]);
   const [accounts, setAccounts] = useState([]);
+  const [onlineIds, setOnlineIds] = useState(getOnlineUserIds());
   const [showModal, setShowModal] = useState(false);
   const [editModal, setEditModal] = useState(null);
   const [form, setForm] = useState({ pseudo:'', grade:'Collaborateur', phone:'' });
@@ -429,65 +380,72 @@ function Members({ currentUser, perms }) {
     return () => { u1(); u2(); clearInterval(t); };
   }, []);
 
-  const filtered = filter==='all' ? members : members.filter(m=>m.grade===filter);
-  const isOnline = (memberId) => {
+  const isOnline = memberId => {
     const acc = accounts.find(a => a.memberId === memberId);
     return acc ? onlineIds.includes(acc.id) : false;
   };
 
   const addMember = async () => {
-    const name = prompt("Pseudo ?");
-    if(!name) return;
-    await fb.add("members", {
-      pseudo: name,
-      grade: "Collaborateur"
+    if (!form.pseudo) return;
+    const color = gradeColor(form.grade);
+    await fbAdd('members', {
+      pseudo: form.pseudo,
+      grade: form.grade,
+      phone: form.phone,
+      joined: fmtDate(),
+      avatar: form.pseudo[0].toUpperCase(),
+      avatarColor: color,
     });
+    pushLog('modification', `Nouveau membre ajouté: ${form.pseudo} par ${currentUser.pseudo}`, 'info');
+    setShowModal(false);
+    setForm({ pseudo:'', grade:'Collaborateur', phone:'' });
   };
 
   const saveMember = async () => {
-    if(!editModal) return;
+    if (!editModal) return;
     const { id, ...data } = editModal;
     await fbSet('members', id, data);
     pushLog('modification', `Fiche membre ${editModal.pseudo} modifiée par ${currentUser.pseudo}`, 'info');
     setEditModal(null);
   };
 
-  const deleteMember = async (id) => {
-    await fb.delete("members", id);
+  const deleteMember = async id => {
+    await fbDelete('members', id);
+    pushLog('suppression', `Membre supprimé par ${currentUser.pseudo}`, 'danger');
   };
 
-  const isHeritier = currentUser.grade === 'Heritier';
+  const filtered = filter === 'all' ? members : members.filter(m => m.grade === filter);
 
   return (
     <div className="page-enter">
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16,flexWrap:'wrap'}}>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-          {['all',...GRADES].map(g=>(
-            <button key={g} className={`btn btn-secondary btn-sm ${filter===g?'btn-primary':''}`} onClick={()=>setFilter(g)}>{g==='all'?'Tous':g}</button>
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {['all', ...GRADES].map(g => (
+            <button key={g} className={`btn btn-secondary btn-sm ${filter === g ? 'btn-primary' : ''}`} onClick={() => setFilter(g)}>{g === 'all' ? 'Tous' : g}</button>
           ))}
         </div>
-        {perms.members_add && <button className="btn btn-primary btn-sm" style={{marginLeft:'auto'}} onClick={()=>setShowModal(true)}>+ Nouveau membre</button>}
+        {perms.members_add && <button className="btn btn-primary btn-sm" style={{ marginLeft:'auto' }} onClick={() => setShowModal(true)}>+ Nouveau membre</button>}
       </div>
       <div className="card">
         <table className="data-table">
-          <thead><tr><th>MEMBRE</th><th>GRADE</th><th>TÉLÉPHONE</th><th>STATUT</th><th>INTÉGRATION</th>{perms.members_edit&&<th>ACTION</th>}</tr></thead>
+          <thead><tr><th>MEMBRE</th><th>GRADE</th><th>TÉLÉPHONE</th><th>STATUT</th><th>INTÉGRATION</th>{perms.members_edit && <th>ACTION</th>}</tr></thead>
           <tbody>
-            {filtered.map(m=>(
+            {filtered.map(m => (
               <tr key={m.id}>
                 <td>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <div style={{width:28,height:28,borderRadius:'50%',background:m.avatarColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,fontFamily:'var(--font-mono)',color:'#fff',flexShrink:0,position:'relative'}}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <div style={{ width:28, height:28, borderRadius:'50%', background:m.avatarColor, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, fontFamily:'var(--font-mono)', color:'#fff', flexShrink:0, position:'relative' }}>
                       {m.avatar}
-                      {isOnline(m.id) && <span style={{position:'absolute',bottom:-1,right:-1,width:9,height:9,borderRadius:'50%',background:'var(--accent-green)',border:'2px solid var(--bg-card)'}}></span>}
+                      {isOnline(m.id) && <span style={{ position:'absolute', bottom:-1, right:-1, width:9, height:9, borderRadius:'50%', background:'var(--accent-green)', border:'2px solid var(--bg-card)' }}></span>}
                     </div>
-                    <span style={{color:'var(--text-primary)',fontWeight:600}}>{m.pseudo}</span>
+                    <span style={{ color:'var(--text-primary)', fontWeight:600 }}>{m.pseudo}</span>
                   </div>
                 </td>
-                <td><span className={gradeClass(m.grade)} style={{fontSize:12,fontWeight:600}}>{m.grade}</span></td>
-                <td><span style={{fontFamily:'var(--font-mono)',fontSize:11}}>{m.phone||'—'}</span></td>
+                <td><span className={gradeClass(m.grade)} style={{ fontSize:12, fontWeight:600 }}>{m.grade}</span></td>
+                <td><span style={{ fontFamily:'var(--font-mono)', fontSize:11 }}>{m.phone || '—'}</span></td>
                 <td>{isOnline(m.id) ? <span className="badge badge-green">● En ligne</span> : <span className="badge badge-gray">○ Hors ligne</span>}</td>
-                <td><span style={{fontSize:11,fontFamily:'var(--font-mono)'}}>{m.joined}</span></td>
-                {perms.members_edit && <td><div style={{display:'flex',gap:4}}><button className="btn btn-secondary btn-sm" onClick={()=>setEditModal({...m})}>✏</button>{currentUser.grade==='Heritier'&&m.id!==currentUser.id&&<button className="btn btn-danger btn-sm" onClick={()=>deleteMember(m.id)}>🗑</button>}</div></td>}
+                <td><span style={{ fontSize:11, fontFamily:'var(--font-mono)' }}>{m.joined}</span></td>
+                {perms.members_edit && <td><div style={{ display:'flex', gap:4 }}><button className="btn btn-secondary btn-sm" onClick={() => setEditModal({ ...m })}>✏</button>{currentUser.grade === 'Heritier' && m.id !== currentUser.id && <button className="btn btn-danger btn-sm" onClick={() => deleteMember(m.id)}>🗑</button>}</div></td>}
               </tr>
             ))}
           </tbody>
@@ -495,28 +453,28 @@ function Members({ currentUser, perms }) {
       </div>
 
       {showModal && (
-        <Modal title="Nouveau Membre" onClose={()=>setShowModal(false)}
-          footer={<><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addMember}>Confirmer</button></>}>
-          <div className="form-group"><label className="label">PSEUDO RP</label><input className="input" value={form.pseudo} onChange={e=>setForm({...form,pseudo:e.target.value})} placeholder="Ex: Shadow" /></div>
+        <Modal title="Nouveau Membre" onClose={() => setShowModal(false)}
+          footer={<><button className="btn btn-secondary" onClick={() => setShowModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addMember}>Confirmer</button></>}>
+          <div className="form-group"><label className="label">PSEUDO RP</label><input className="input" value={form.pseudo} onChange={e => setForm({ ...form, pseudo:e.target.value })} placeholder="Ex: Shadow" /></div>
           <div className="form-group"><label className="label">GRADE</label>
-            <select className="select" value={form.grade} onChange={e=>setForm({...form,grade:e.target.value})}>
-              {GRADES.map(g=><option key={g}>{g}</option>)}
+            <select className="select" value={form.grade} onChange={e => setForm({ ...form, grade:e.target.value })}>
+              {GRADES.map(g => <option key={g}>{g}</option>)}
             </select>
           </div>
-          <div className="form-group"><label className="label">TÉLÉPHONE RP</label><input className="input" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Ex: 06 12 34 56 78" /></div>
+          <div className="form-group"><label className="label">TÉLÉPHONE RP</label><input className="input" value={form.phone} onChange={e => setForm({ ...form, phone:e.target.value })} placeholder="Ex: 06 12 34 56 78" /></div>
         </Modal>
       )}
 
       {editModal && (
-        <Modal title={`Modifier — ${editModal.pseudo}`} onClose={()=>setEditModal(null)}
-          footer={<><button className="btn btn-secondary" onClick={()=>setEditModal(null)}>Annuler</button><button className="btn btn-primary" onClick={saveMember}>Sauvegarder</button></>}>
-          <div className="form-group"><label className="label">PSEUDO RP</label><input className="input" value={editModal.pseudo} onChange={e=>setEditModal({...editModal,pseudo:e.target.value})} /></div>
+        <Modal title={`Modifier — ${editModal.pseudo}`} onClose={() => setEditModal(null)}
+          footer={<><button className="btn btn-secondary" onClick={() => setEditModal(null)}>Annuler</button><button className="btn btn-primary" onClick={saveMember}>Sauvegarder</button></>}>
+          <div className="form-group"><label className="label">PSEUDO RP</label><input className="input" value={editModal.pseudo} onChange={e => setEditModal({ ...editModal, pseudo:e.target.value })} /></div>
           <div className="form-group"><label className="label">GRADE</label>
-            <select className="select" value={editModal.grade} onChange={e=>setEditModal({...editModal,grade:e.target.value,avatarColor:gradeColor(e.target.value)})}>
-              {GRADES.map(g=><option key={g}>{g}</option>)}
+            <select className="select" value={editModal.grade} onChange={e => setEditModal({ ...editModal, grade:e.target.value, avatarColor:gradeColor(e.target.value) })}>
+              {GRADES.map(g => <option key={g}>{g}</option>)}
             </select>
           </div>
-          <div className="form-group"><label className="label">TÉLÉPHONE RP</label><input className="input" value={editModal.phone||''} onChange={e=>setEditModal({...editModal,phone:e.target.value})} placeholder="Ex: 06 12 34 56 78" /></div>
+          <div className="form-group"><label className="label">TÉLÉPHONE RP</label><input className="input" value={editModal.phone || ''} onChange={e => setEditModal({ ...editModal, phone:e.target.value })} /></div>
         </Modal>
       )}
     </div>
@@ -525,76 +483,78 @@ function Members({ currentUser, perms }) {
 
 // ─── WEAPONS ─────────────────────────────────────────────────────────────────
 function Weapons({ currentUser, perms }) {
-  const [weapons, setWeapons] = useState(() => load(SK.weapons, DEFAULT_WEAPONS));
+  const [weapons, setWeapons] = useState([]);
+  const [members, setMembers] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const members = load(SK.members, DEFAULT_MEMBERS);
   const [form, setForm] = useState({ type:'couteau', status:'disponible', owner:'', serial:'' });
 
-  const typeIcon = t => ({ couteau:'🗡', machette:'🔪', petoire:'🔫', revolver:'🔫', batte:'🏏', hache:'🪓', marteau:'🔨', katana:'⚔', 'pied de biche':'🔧', 'queue de billard':'🎱', 'queue de golf':'🏌', cambu:'🪝' }[t]||'🗡');
+  useEffect(() => {
+    const u1 = fbListen('weapons', setWeapons);
+    const u2 = fbListen('members', setMembers);
+    return () => { u1(); u2(); };
+  }, []);
 
-  const addWeapon = () => {
-    const nw = { id:'w'+Date.now(), type:form.type, owner:form.owner, status:form.status, serial:form.serial };
-    const updated = [...weapons, nw];
-    setWeapons(updated); save(SK.weapons, updated);
-    pushLog('stock', `Arme déclarée: ${form.type}${form.serial?' #'+form.serial:''} par ${currentUser.pseudo}`, 'info');
-    setShowModal(false); setForm({ type:'couteau', status:'disponible', owner:'', serial:'' });
+  const typeIcon = t => ({ couteau:'🗡', machette:'🔪', petoire:'🔫', revolver:'🔫', batte:'🏏', hache:'🪓', marteau:'🔨', katana:'⚔', 'pied de biche':'🔧', 'queue de billard':'🎱', 'queue de golf':'🏌', cambu:'🪝' }[t] || '🗡');
+
+  const addWeapon = async () => {
+    await fbAdd('weapons', { type:form.type, owner:form.owner, status:form.status, serial:form.serial });
+    pushLog('stock', `Arme déclarée: ${form.type}${form.serial ? ' #' + form.serial : ''} par ${currentUser.pseudo}`, 'info');
+    setShowModal(false);
+    setForm({ type:'couteau', status:'disponible', owner:'', serial:'' });
   };
 
-  const claimWeapon = id => {
-    const updated = weapons.map(w=>w.id===id ? {...w, owner:currentUser.pseudo} : w);
-    setWeapons(updated); save(SK.weapons, updated);
+  const claimWeapon = async id => {
+    await fbSet('weapons', id, { owner:currentUser.pseudo });
     pushLog('transfert', `Arme prise par ${currentUser.pseudo}`, 'warn');
   };
 
-  const deleteWeapon = id => {
-    const w = weapons.find(x=>x.id===id);
-    const updated = weapons.filter(x=>x.id!==id);
-    setWeapons(updated); save(SK.weapons, updated);
-    pushLog('suppression', `Arme supprimée: ${w?.type}${w?.serial?' #'+w.serial:''} par ${currentUser.pseudo}`, 'danger');
+  const deleteWeapon = async id => {
+    const w = weapons.find(x => x.id === id);
+    await fbDelete('weapons', id);
+    pushLog('suppression', `Arme supprimée: ${w?.type}${w?.serial ? ' #' + w.serial : ''} par ${currentUser.pseudo}`, 'danger');
   };
 
   return (
     <div className="page-enter">
-      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
-        {perms.weapons_add && <button className="btn btn-primary btn-sm" onClick={()=>setShowModal(true)}>+ Déclarer une arme</button>}
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:16 }}>
+        {perms.weapons_add && <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Déclarer une arme</button>}
       </div>
       <div className="card">
-        {weapons.length===0
-          ? <div style={{padding:40,textAlign:'center',color:'var(--text-muted)',fontSize:12,fontFamily:'var(--font-mono)'}}>Aucune arme enregistrée</div>
+        {weapons.length === 0
+          ? <div style={{ padding:40, textAlign:'center', color:'var(--text-muted)', fontSize:12, fontFamily:'var(--font-mono)' }}>Aucune arme enregistrée</div>
           : <table className="data-table">
               <thead><tr><th>TYPE</th><th>N° SÉRIE</th><th>DÉTENTEUR</th><th>STATUT</th><th>ACTION</th></tr></thead>
               <tbody>
-                {weapons.map(w=>(
+                {weapons.map(w => (
                   <tr key={w.id}>
-                    <td><div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:16}}>{typeIcon(w.type)}</span><span style={{fontFamily:'var(--font-mono)',fontSize:11,textTransform:'capitalize'}}>{w.type}</span></div></td>
-                    <td><span className="mono" style={{fontSize:10,background:'var(--bg-tertiary)',padding:'2px 6px',borderRadius:3,border:'1px solid var(--border)',color:'var(--text-muted)'}}>{w.serial||'—'}</span></td>
-                    <td>{w.owner ? <span className={gradeClass(members.find(m=>m.pseudo===w.owner)?.grade||'')} style={{fontWeight:600}}>{w.owner}</span> : <span style={{color:'var(--text-muted)',fontFamily:'var(--font-mono)',fontSize:11}}>— non attribué</span>}</td>
+                    <td><div style={{ display:'flex', alignItems:'center', gap:8 }}><span style={{ fontSize:16 }}>{typeIcon(w.type)}</span><span style={{ fontFamily:'var(--font-mono)', fontSize:11, textTransform:'capitalize' }}>{w.type}</span></div></td>
+                    <td><span className="mono" style={{ fontSize:10, background:'var(--bg-tertiary)', padding:'2px 6px', borderRadius:3, border:'1px solid var(--border)', color:'var(--text-muted)' }}>{w.serial || '—'}</span></td>
+                    <td>{w.owner ? <span className={gradeClass(members.find(m => m.pseudo === w.owner)?.grade || '')} style={{ fontWeight:600 }}>{w.owner}</span> : <span style={{ color:'var(--text-muted)', fontFamily:'var(--font-mono)', fontSize:11 }}>— non attribué</span>}</td>
                     <td>{statusBadge(w.status)}</td>
-                    <td><div style={{display:'flex',gap:4}}><button className={`btn btn-sm ${w.owner===currentUser.pseudo?'btn-green':'btn-secondary'}`} onClick={()=>claimWeapon(w.id)}>{w.owner===currentUser.pseudo ? '✓ Sur moi' : "→ Je l'ai"}</button>{(currentUser.grade==='Heritier'||currentUser.grade==='Regent')&&<button className="btn btn-danger btn-sm" onClick={()=>deleteWeapon(w.id)}>🗑</button>}</div></td>
+                    <td><div style={{ display:'flex', gap:4 }}><button className={`btn btn-sm ${w.owner === currentUser.pseudo ? 'btn-green' : 'btn-secondary'}`} onClick={() => claimWeapon(w.id)}>{w.owner === currentUser.pseudo ? '✓ Sur moi' : "→ Je l'ai"}</button>{(currentUser.grade === 'Heritier' || currentUser.grade === 'Regent') && <button className="btn btn-danger btn-sm" onClick={() => deleteWeapon(w.id)}>🗑</button>}</div></td>
                   </tr>
                 ))}
               </tbody>
             </table>
         }
       </div>
-
       {showModal && (
-        <Modal title="Déclarer une Arme" onClose={()=>setShowModal(false)}
-          footer={<><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addWeapon}>Enregistrer</button></>}>
+        <Modal title="Déclarer une Arme" onClose={() => setShowModal(false)}
+          footer={<><button className="btn btn-secondary" onClick={() => setShowModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addWeapon}>Enregistrer</button></>}>
           <div className="form-group"><label className="label">TYPE</label>
-            <select className="select" value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>
-              {WEAPON_TYPES.map(t=><option key={t} value={t} style={{textTransform:'capitalize'}}>{t}</option>)}
+            <select className="select" value={form.type} onChange={e => setForm({ ...form, type:e.target.value })}>
+              {WEAPON_TYPES.map(t => <option key={t} value={t} style={{ textTransform:'capitalize' }}>{t}</option>)}
             </select>
           </div>
-          <div className="form-group"><label className="label">NUMÉRO DE SÉRIE</label><input className="input" value={form.serial} onChange={e=>setForm({...form,serial:e.target.value})} placeholder="Ex: SN-4892-X" /></div>
+          <div className="form-group"><label className="label">NUMÉRO DE SÉRIE</label><input className="input" value={form.serial} onChange={e => setForm({ ...form, serial:e.target.value })} placeholder="Ex: SN-4892-X" /></div>
           <div className="form-group"><label className="label">DÉTENTEUR</label>
-            <select className="select" value={form.owner} onChange={e=>setForm({...form,owner:e.target.value})}>
+            <select className="select" value={form.owner} onChange={e => setForm({ ...form, owner:e.target.value })}>
               <option value="">— Non attribué</option>
-              {members.map(m=><option key={m.id} value={m.pseudo}>{m.pseudo}</option>)}
+              {members.map(m => <option key={m.id} value={m.pseudo}>{m.pseudo}</option>)}
             </select>
           </div>
           <div className="form-group"><label className="label">STATUT</label>
-            <select className="select" value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>
+            <select className="select" value={form.status} onChange={e => setForm({ ...form, status:e.target.value })}>
               <option value="disponible">Disponible</option><option value="perdue">Perdue</option><option value="saisie">Saisie</option>
             </select>
           </div>
@@ -606,93 +566,91 @@ function Weapons({ currentUser, perms }) {
 
 // ─── DEBTS ───────────────────────────────────────────────────────────────────
 function Debts({ currentUser, perms }) {
-  const [debts, setDebts] = useState(() => load(SK.debts, DEFAULT_DEBTS));
+  const [debts, setDebts] = useState([]);
+  const [members, setMembers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showRembModal, setShowRembModal] = useState(null);
   const [tab, setTab] = useState('non-payé');
-  const members = load(SK.members, DEFAULT_MEMBERS);
   const [form, setForm] = useState({ debtor:'', amount:'', reason:'', date:'' });
   const [rembAmount, setRembAmount] = useState('');
 
-  const addDebt = () => {
-    if(!form.debtor || !form.amount) return;
-    const nd = { id:'d'+Date.now(), debtor:form.debtor, amount:parseInt(form.amount), reason:form.reason, date:form.date||fmtDate(), status:'non-payé', paid:0 };
-    const updated = [...debts, nd];
-    setDebts(updated); save(SK.debts, updated);
+  useEffect(() => {
+    const u1 = fbListen('debts', setDebts);
+    const u2 = fbListen('members', setMembers);
+    return () => { u1(); u2(); };
+  }, []);
+
+  const addDebt = async () => {
+    if (!form.debtor || !form.amount) return;
+    await fbAdd('debts', { debtor:form.debtor, amount:parseInt(form.amount), reason:form.reason, date:form.date || fmtDate(), status:'non-payé', paid:0 });
     pushLog('modification', `Dette créée: ${form.debtor} — ${fmtMoney(parseInt(form.amount))} par ${currentUser.pseudo}`, 'warn');
-    setShowModal(false); setForm({ debtor:'', amount:'', reason:'', date:'' });
+    setShowModal(false);
+    setForm({ debtor:'', amount:'', reason:'', date:'' });
   };
 
-  const addRemb = () => {
+  const addRemb = async () => {
     const val = parseInt(rembAmount);
-    if(!val||val<=0) return;
-    const updated = debts.map(d=>{
-      if(d.id!==showRembModal) return d;
-      const np = Math.min(d.paid+val, d.amount);
-      return {...d, paid:np, status: np>=d.amount?'payé':np>0?'partiel':'non-payé'};
-    });
-    setDebts(updated); save(SK.debts, updated);
+    if (!val || val <= 0) return;
+    const d = debts.find(x => x.id === showRembModal);
+    if (!d) return;
+    const np = Math.min(d.paid + val, d.amount);
+    const newStatus = np >= d.amount ? 'payé' : np > 0 ? 'partiel' : 'non-payé';
+    await fbSet('debts', d.id, { paid:np, status:newStatus });
     pushLog('modification', `Remboursement de ${fmtMoney(val)} enregistré`, 'info');
-    setRembAmount(''); setShowRembModal(null);
+    setRembAmount('');
+    setShowRembModal(null);
   };
 
-  const deleteDebt = id => {
-    const d = debts.find(x=>x.id===id);
-    const updated = debts.filter(x=>x.id!==id);
-    setDebts(updated); save(SK.debts, updated);
+  const deleteDebt = async id => {
+    const d = debts.find(x => x.id === id);
+    await fbDelete('debts', id);
     pushLog('suppression', `Dette de ${d?.debtor} supprimée par ${currentUser.pseudo}`, 'danger');
   };
 
-  const totalOwed = debts.filter(d=>d.status!=='payé').reduce((s,d)=>s+d.amount-d.paid,0);
-  const tabCounts = { 'non-payé': debts.filter(d=>d.status==='non-payé').length, 'partiel': debts.filter(d=>d.status==='partiel').length, 'payé': debts.filter(d=>d.status==='payé').length };
-  const filtered = debts.filter(d=>d.status===tab);
+  const totalOwed = debts.filter(d => d.status !== 'payé').reduce((s, d) => s + d.amount - d.paid, 0);
+  const tabCounts = { 'non-payé': debts.filter(d => d.status === 'non-payé').length, 'partiel': debts.filter(d => d.status === 'partiel').length, 'payé': debts.filter(d => d.status === 'payé').length };
+  const filtered = debts.filter(d => d.status === tab);
 
   return (
     <div className="page-enter">
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
-        <div className="stat-card red" style={{flex:1,padding:12,marginBottom:0}}>
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
+        <div className="stat-card red" style={{ flex:1, padding:12, marginBottom:0 }}>
           <div className="stat-label">Total Dettes Actives</div>
-          <div className="stat-value" style={{fontSize:18}}>{fmtMoney(totalOwed)}</div>
+          <div className="stat-value" style={{ fontSize:18 }}>{fmtMoney(totalOwed)}</div>
         </div>
-        <div className="stat-card green" style={{flex:1,padding:12,marginBottom:0}}>
+        <div className="stat-card green" style={{ flex:1, padding:12, marginBottom:0 }}>
           <div className="stat-label">Dettes Soldées</div>
-          <div className="stat-value" style={{fontSize:18}}>{tabCounts['payé']}</div>
+          <div className="stat-value" style={{ fontSize:18 }}>{tabCounts['payé']}</div>
         </div>
-        {perms.debts_manage && <button className="btn btn-primary btn-sm" style={{flexShrink:0}} onClick={()=>setShowModal(true)}>+ Créer dette</button>}
+        {perms.debts_manage && <button className="btn btn-primary btn-sm" style={{ flexShrink:0 }} onClick={() => setShowModal(true)}>+ Créer dette</button>}
       </div>
-
-      {/* Tabs */}
-      <div style={{display:'flex',gap:4,marginBottom:12}}>
-        {[{k:'non-payé',label:'Impayées',color:'var(--vmf-accent)'},{k:'partiel',label:'Partielles',color:'var(--gold)'},{k:'payé',label:'Payées',color:'var(--accent-green)'}].map(t=>(
-          <button key={t.k} onClick={()=>setTab(t.k)}
-            className={`btn btn-sm ${tab===t.k?'btn-primary':'btn-secondary'}`}
-            style={tab===t.k?{}:{}}
-          >
-            {t.label} <span style={{marginLeft:4,fontFamily:'var(--font-mono)',fontSize:10,opacity:0.7}}>({tabCounts[t.k]})</span>
+      <div style={{ display:'flex', gap:4, marginBottom:12 }}>
+        {[{ k:'non-payé', label:'Impayées' }, { k:'partiel', label:'Partielles' }, { k:'payé', label:'Payées' }].map(t => (
+          <button key={t.k} onClick={() => setTab(t.k)} className={`btn btn-sm ${tab === t.k ? 'btn-primary' : 'btn-secondary'}`}>
+            {t.label} <span style={{ marginLeft:4, fontFamily:'var(--font-mono)', fontSize:10, opacity:0.7 }}>({tabCounts[t.k]})</span>
           </button>
         ))}
       </div>
-
       <div className="card">
-        {filtered.length===0
-          ? <div style={{padding:40,textAlign:'center',color:'var(--text-muted)',fontSize:12,fontFamily:'var(--font-mono)'}}>Aucune dette dans cette catégorie</div>
+        {filtered.length === 0
+          ? <div style={{ padding:40, textAlign:'center', color:'var(--text-muted)', fontSize:12, fontFamily:'var(--font-mono)' }}>Aucune dette dans cette catégorie</div>
           : <table className="data-table">
               <thead><tr><th>DÉBITEUR</th><th>MONTANT</th><th>RAISON</th><th>DATE</th><th>REMBOURSÉ</th><th>ACTION</th></tr></thead>
               <tbody>
-                {filtered.map(d=>(
+                {filtered.map(d => (
                   <tr key={d.id}>
-                    <td style={{color:'var(--text-primary)',fontWeight:600}}>{d.debtor}</td>
-                    <td style={{fontFamily:'var(--font-mono)',color:d.status!=='payé'?'var(--vmf-accent)':'var(--accent-green)',fontWeight:700}}>{fmtMoney(d.amount)}</td>
-                    <td style={{fontSize:11,maxWidth:150,color:'var(--text-muted)'}}>{d.reason}</td>
-                    <td style={{fontSize:11,fontFamily:'var(--font-mono)'}}>{d.date}</td>
+                    <td style={{ color:'var(--text-primary)', fontWeight:600 }}>{d.debtor}</td>
+                    <td style={{ fontFamily:'var(--font-mono)', color:d.status !== 'payé' ? 'var(--vmf-accent)' : 'var(--accent-green)', fontWeight:700 }}>{fmtMoney(d.amount)}</td>
+                    <td style={{ fontSize:11, maxWidth:150, color:'var(--text-muted)' }}>{d.reason}</td>
+                    <td style={{ fontSize:11, fontFamily:'var(--font-mono)' }}>{d.date}</td>
                     <td>
-                      <div><div style={{fontSize:11,fontFamily:'var(--font-mono)',marginBottom:4}}>{fmtMoney(d.paid)} / {fmtMoney(d.amount)}</div>
-                        <div className="progress-bar" style={{width:100}}><div className="progress-fill" style={{width:`${Math.min(100,Math.round(d.paid/d.amount*100))}%`,background:d.status==='payé'?'var(--accent-green)':d.status==='partiel'?'var(--gold)':'var(--vmf-accent)'}}></div></div>
+                      <div><div style={{ fontSize:11, fontFamily:'var(--font-mono)', marginBottom:4 }}>{fmtMoney(d.paid)} / {fmtMoney(d.amount)}</div>
+                        <div className="progress-bar" style={{ width:100 }}><div className="progress-fill" style={{ width:`${Math.min(100, Math.round(d.paid / d.amount * 100))}%`, background:d.status === 'payé' ? 'var(--accent-green)' : d.status === 'partiel' ? 'var(--gold)' : 'var(--vmf-accent)' }}></div></div>
                       </div>
                     </td>
-                    <td><div style={{display:'flex',gap:4}}>
-                      {d.status!=='payé' && perms.debts_manage && <button className="btn btn-secondary btn-sm" onClick={()=>{setShowRembModal(d.id);setRembAmount('');}}>+ Remb.</button>}
-                      {perms.debts_manage && <button className="btn btn-danger btn-sm" onClick={()=>deleteDebt(d.id)}>🗑</button>}
+                    <td><div style={{ display:'flex', gap:4 }}>
+                      {d.status !== 'payé' && perms.debts_manage && <button className="btn btn-secondary btn-sm" onClick={() => { setShowRembModal(d.id); setRembAmount(''); }}>+ Remb.</button>}
+                      {perms.debts_manage && <button className="btn btn-danger btn-sm" onClick={() => deleteDebt(d.id)}>🗑</button>}
                     </div></td>
                   </tr>
                 ))}
@@ -702,36 +660,36 @@ function Debts({ currentUser, perms }) {
       </div>
 
       {showModal && perms.debts_manage && (
-        <Modal title="Créer une Dette" onClose={()=>setShowModal(false)}
-          footer={<><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addDebt}>Créer</button></>}>
+        <Modal title="Créer une Dette" onClose={() => setShowModal(false)}
+          footer={<><button className="btn btn-secondary" onClick={() => setShowModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addDebt}>Créer</button></>}>
           <div className="form-group"><label className="label">MEMBRE DÉBITEUR</label>
-            <select className="select" value={form.debtor} onChange={e=>setForm({...form,debtor:e.target.value})}>
+            <select className="select" value={form.debtor} onChange={e => setForm({ ...form, debtor:e.target.value })}>
               <option value="">Sélectionner un membre...</option>
-              {members.map(m=><option key={m.id}>{m.pseudo}</option>)}
+              {members.map(m => <option key={m.id}>{m.pseudo}</option>)}
             </select>
           </div>
-          <div className="form-group"><label className="label">MONTANT ($)</label><input type="number" className="input" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} placeholder="Ex: 25000" /></div>
-          <div className="form-group"><label className="label">RAISON</label><input className="input" value={form.reason} onChange={e=>setForm({...form,reason:e.target.value})} placeholder="Ex: Livraison de matériel" /></div>
-          <div className="form-group"><label className="label">DATE</label><input type="date" className="input" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} /></div>
+          <div className="form-group"><label className="label">MONTANT ($)</label><input type="number" className="input" value={form.amount} onChange={e => setForm({ ...form, amount:e.target.value })} placeholder="Ex: 25000" /></div>
+          <div className="form-group"><label className="label">RAISON</label><input className="input" value={form.reason} onChange={e => setForm({ ...form, reason:e.target.value })} placeholder="Ex: Livraison de matériel" /></div>
+          <div className="form-group"><label className="label">DATE</label><input type="date" className="input" value={form.date} onChange={e => setForm({ ...form, date:e.target.value })} /></div>
         </Modal>
       )}
 
-      {showRembModal && (()=>{
-        const d = debts.find(x=>x.id===showRembModal);
-        if(!d) return null;
+      {showRembModal && (() => {
+        const d = debts.find(x => x.id === showRembModal);
+        if (!d) return null;
         return (
-          <Modal title="Ajouter un Remboursement" onClose={()=>setShowRembModal(null)}
-            footer={<><button className="btn btn-secondary" onClick={()=>setShowRembModal(null)}>Annuler</button><button className="btn btn-primary" onClick={addRemb}>Confirmer</button></>}>
-            <div style={{background:'var(--bg-tertiary)',borderRadius:'var(--radius)',padding:'12px',marginBottom:16}}>
-              <div style={{fontSize:11,fontFamily:'var(--font-mono)',color:'var(--text-muted)',marginBottom:4}}>DETTE DE</div>
-              <div style={{fontSize:14,fontWeight:700,color:'var(--text-primary)',marginBottom:8}}>{d.debtor}</div>
-              <div style={{display:'flex',gap:20}}>
-                <div><div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'var(--text-muted)'}}>TOTAL DÛ</div><div style={{fontSize:13,fontFamily:'var(--font-mono)',color:'var(--vmf-accent)',fontWeight:700}}>{fmtMoney(d.amount)}</div></div>
-                <div><div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'var(--text-muted)'}}>PAYÉ</div><div style={{fontSize:13,fontFamily:'var(--font-mono)',color:'var(--accent-green)',fontWeight:700}}>{fmtMoney(d.paid)}</div></div>
-                <div><div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'var(--text-muted)'}}>RESTE</div><div style={{fontSize:13,fontFamily:'var(--font-mono)',color:'var(--gold)',fontWeight:700}}>{fmtMoney(d.amount-d.paid)}</div></div>
+          <Modal title="Ajouter un Remboursement" onClose={() => setShowRembModal(null)}
+            footer={<><button className="btn btn-secondary" onClick={() => setShowRembModal(null)}>Annuler</button><button className="btn btn-primary" onClick={addRemb}>Confirmer</button></>}>
+            <div style={{ background:'var(--bg-tertiary)', borderRadius:'var(--radius)', padding:'12px', marginBottom:16 }}>
+              <div style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--text-muted)', marginBottom:4 }}>DETTE DE</div>
+              <div style={{ fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:8 }}>{d.debtor}</div>
+              <div style={{ display:'flex', gap:20 }}>
+                <div><div style={{ fontSize:10, fontFamily:'var(--font-mono)', color:'var(--text-muted)' }}>TOTAL DÛ</div><div style={{ fontSize:13, fontFamily:'var(--font-mono)', color:'var(--vmf-accent)', fontWeight:700 }}>{fmtMoney(d.amount)}</div></div>
+                <div><div style={{ fontSize:10, fontFamily:'var(--font-mono)', color:'var(--text-muted)' }}>PAYÉ</div><div style={{ fontSize:13, fontFamily:'var(--font-mono)', color:'var(--accent-green)', fontWeight:700 }}>{fmtMoney(d.paid)}</div></div>
+                <div><div style={{ fontSize:10, fontFamily:'var(--font-mono)', color:'var(--text-muted)' }}>RESTE</div><div style={{ fontSize:13, fontFamily:'var(--font-mono)', color:'var(--gold)', fontWeight:700 }}>{fmtMoney(d.amount - d.paid)}</div></div>
               </div>
             </div>
-            <div className="form-group"><label className="label">MONTANT REMBOURSÉ ($)</label><input type="number" className="input" value={rembAmount} onChange={e=>setRembAmount(e.target.value)} placeholder={`Max: ${fmtMoney(d.amount-d.paid)}`} /></div>
+            <div className="form-group"><label className="label">MONTANT REMBOURSÉ ($)</label><input type="number" className="input" value={rembAmount} onChange={e => setRembAmount(e.target.value)} placeholder={`Max: ${fmtMoney(d.amount - d.paid)}`} /></div>
           </Modal>
         );
       })()}
@@ -741,76 +699,81 @@ function Debts({ currentUser, perms }) {
 
 // ─── VEHICLES ────────────────────────────────────────────────────────────────
 function Vehicles({ currentUser, perms }) {
-  const [vehicles, setVehicles] = useState(() => load(SK.vehicles, DEFAULT_VEHICLES));
+  const [vehicles, setVehicles] = useState([]);
+  const [members, setMembers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(currentUser.pseudo);
-  const members = load(SK.members, DEFAULT_MEMBERS);
   const [form, setForm] = useState({ model:'', plate:'', state:'Parfait' });
-  const stateColor = s => ({ 'Parfait':'var(--accent-green)', 'Bon':'var(--gold)', 'Endommagé':'var(--accent-red)', 'Saisie probable':'#888' }[s]||'var(--text-muted)');
 
-  const addVehicle = () => {
-    if(!form.model||!form.plate) return;
-    const nv = { id:'v'+Date.now(), model:form.model, plate:form.plate, state:form.state, lastUsedBy:'', usage:[] };
-    const updated = [...vehicles, nv];
-    setVehicles(updated); save(SK.vehicles, updated);
+  useEffect(() => {
+    const u1 = fbListen('vehicles', setVehicles);
+    const u2 = fbListen('members', setMembers);
+    return () => { u1(); u2(); };
+  }, []);
+
+  const stateColor = s => ({ 'Parfait':'var(--accent-green)', 'Bon':'var(--gold)', 'Endommagé':'var(--accent-red)', 'Saisie probable':'#888' }[s] || 'var(--text-muted)');
+
+  const addVehicle = async () => {
+    if (!form.model || !form.plate) return;
+    await fbAdd('vehicles', { model:form.model, plate:form.plate, state:form.state, lastUsedBy:'', usage:[] });
     pushLog('stock', `Véhicule ajouté: ${form.model} (${form.plate}) par ${currentUser.pseudo}`, 'info');
-    setShowModal(false); setForm({ model:'', plate:'', state:'Parfait' });
+    setShowModal(false);
+    setForm({ model:'', plate:'', state:'Parfait' });
   };
 
-  const claimVehicle = id => {
+  const claimVehicle = async id => {
     const now = new Date();
     const d = `${now.getDate().toString().padStart(2,'0')}/${(now.getMonth()+1).toString().padStart(2,'0')}`;
-    const updated = vehicles.map(v=>v.id!==id?v:{ ...v, lastUsedBy:selectedUser, usage:[...v.usage,`${selectedUser} - ${d}`] });
-    setVehicles(updated); save(SK.vehicles, updated);
+    const v = vehicles.find(x => x.id === id);
+    const newUsage = [...(v?.usage || []), `${selectedUser} - ${d}`];
+    await fbSet('vehicles', id, { lastUsedBy:selectedUser, usage:newUsage });
     pushLog('transfert', `Véhicule utilisé par ${selectedUser}`, 'info');
   };
 
-  const deleteVehicle = id => {
-    const v = vehicles.find(x=>x.id===id);
-    const updated = vehicles.filter(x=>x.id!==id);
-    setVehicles(updated); save(SK.vehicles, updated);
+  const deleteVehicle = async id => {
+    const v = vehicles.find(x => x.id === id);
+    await fbDelete('vehicles', id);
     pushLog('suppression', `Véhicule supprimé: ${v?.model} (${v?.plate}) par ${currentUser.pseudo}`, 'danger');
   };
 
   return (
     <div className="page-enter">
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <label className="label" style={{marginBottom:0,whiteSpace:'nowrap'}}>DÉCLARER POUR :</label>
-          <select className="select" style={{width:180}} value={selectedUser} onChange={e=>setSelectedUser(e.target.value)}>
-            {members.map(m=><option key={m.id} value={m.pseudo}>{m.pseudo}</option>)}
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <label className="label" style={{ marginBottom:0, whiteSpace:'nowrap' }}>DÉCLARER POUR :</label>
+          <select className="select" style={{ width:180 }} value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
+            {members.map(m => <option key={m.id} value={m.pseudo}>{m.pseudo}</option>)}
           </select>
         </div>
-        {currentUser.grade==='Heritier' && <button className="btn btn-primary btn-sm" style={{marginLeft:'auto'}} onClick={()=>setShowModal(true)}>+ Ajouter véhicule</button>}
+        {currentUser.grade === 'Heritier' && <button className="btn btn-primary btn-sm" style={{ marginLeft:'auto' }} onClick={() => setShowModal(true)}>+ Ajouter véhicule</button>}
       </div>
       <div className="card">
-        {vehicles.length===0
-          ? <div style={{padding:40,textAlign:'center',color:'var(--text-muted)',fontSize:12,fontFamily:'var(--font-mono)'}}>Aucun véhicule enregistré</div>
+        {vehicles.length === 0
+          ? <div style={{ padding:40, textAlign:'center', color:'var(--text-muted)', fontSize:12, fontFamily:'var(--font-mono)' }}>Aucun véhicule enregistré</div>
           : <table className="data-table">
               <thead><tr><th>MODÈLE</th><th>PLAQUE</th><th>ÉTAT</th><th>DERNIER USAGE</th><th>ACTION</th></tr></thead>
               <tbody>
-                {vehicles.map(v=>(
+                {vehicles.map(v => (
                   <tr key={v.id}>
-                    <td style={{color:'var(--text-primary)',fontWeight:600}}>{v.model}</td>
-                    <td><span className="mono" style={{fontSize:10,background:'var(--bg-tertiary)',padding:'2px 6px',borderRadius:3,border:'1px solid var(--border)'}}>{v.plate}</span></td>
-                    <td><span style={{fontSize:11,color:stateColor(v.state),fontWeight:600}}>{v.state}</span></td>
-                    <td style={{fontSize:11,color:'var(--text-muted)',fontFamily:'var(--font-mono)'}}>{v.usage.length>0 ? v.usage[v.usage.length-1] : '—'}</td>
-                    <td><div style={{display:'flex',gap:4}}><button className={`btn btn-sm ${v.lastUsedBy===selectedUser?'btn-green':'btn-secondary'}`} onClick={()=>claimVehicle(v.id)}>{v.lastUsedBy===selectedUser ? `✓ ${selectedUser}` : `→ ${selectedUser} l'utilise`}</button>{currentUser.grade==='Heritier'&&<button className="btn btn-danger btn-sm" onClick={()=>deleteVehicle(v.id)}>🗑</button>}</div></td>
+                    <td style={{ color:'var(--text-primary)', fontWeight:600 }}>{v.model}</td>
+                    <td><span className="mono" style={{ fontSize:10, background:'var(--bg-tertiary)', padding:'2px 6px', borderRadius:3, border:'1px solid var(--border)' }}>{v.plate}</span></td>
+                    <td><span style={{ fontSize:11, color:stateColor(v.state), fontWeight:600 }}>{v.state}</span></td>
+                    <td style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{(v.usage || []).length > 0 ? v.usage[v.usage.length - 1] : '—'}</td>
+                    <td><div style={{ display:'flex', gap:4 }}><button className={`btn btn-sm ${v.lastUsedBy === selectedUser ? 'btn-green' : 'btn-secondary'}`} onClick={() => claimVehicle(v.id)}>{v.lastUsedBy === selectedUser ? `✓ ${selectedUser}` : `→ ${selectedUser} l'utilise`}</button>{currentUser.grade === 'Heritier' && <button className="btn btn-danger btn-sm" onClick={() => deleteVehicle(v.id)}>🗑</button>}</div></td>
                   </tr>
                 ))}
               </tbody>
             </table>
         }
       </div>
-
       {showModal && (
-        <Modal title="Ajouter un Véhicule" onClose={()=>setShowModal(false)}
-          footer={<><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addVehicle}>Enregistrer</button></>}>
-          <div className="form-group"><label className="label">MODÈLE</label><input className="input" value={form.model} onChange={e=>setForm({...form,model:e.target.value})} placeholder="Ex: Sultan RS" /></div>
-          <div className="form-group"><label className="label">PLAQUE</label><input className="input" value={form.plate} onChange={e=>setForm({...form,plate:e.target.value})} placeholder="Ex: VMF-01" /></div>
+        <Modal title="Ajouter un Véhicule" onClose={() => setShowModal(false)}
+          footer={<><button className="btn btn-secondary" onClick={() => setShowModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addVehicle}>Enregistrer</button></>}>
+          <div className="form-group"><label className="label">MODÈLE</label><input className="input" value={form.model} onChange={e => setForm({ ...form, model:e.target.value })} placeholder="Ex: Sultan RS" /></div>
+          <div className="form-group"><label className="label">PLAQUE</label><input className="input" value={form.plate} onChange={e => setForm({ ...form, plate:e.target.value })} placeholder="Ex: VMF-01" /></div>
           <div className="form-group"><label className="label">ÉTAT</label>
-            <select className="select" value={form.state} onChange={e=>setForm({...form,state:e.target.value})}>
-              {['Parfait','Bon','Endommagé','Saisie probable'].map(s=><option key={s}>{s}</option>)}
+            <select className="select" value={form.state} onChange={e => setForm({ ...form, state:e.target.value })}>
+              {['Parfait','Bon','Endommagé','Saisie probable'].map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
         </Modal>
@@ -821,40 +784,37 @@ function Vehicles({ currentUser, perms }) {
 
 // ─── CHAT ────────────────────────────────────────────────────────────────────
 function Chat({ currentUser }) {
-  const [messages, setMessages] = useState(() => load(SK.messages, DEFAULT_MESSAGES));
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [onlineIds, setOnlineIds] = useState(getOnlineUserIds());
+  const [accounts, setAccounts] = useState([]);
+  const [members, setMembers] = useState([]);
   const messagesEndRef = useRef(null);
-  const members = load(SK.members, DEFAULT_MEMBERS);
-  const accounts = load(SK.users, DEFAULT_ACCOUNTS);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // CHAT LIVE
-  useEffect(()=>{
-    return fb.listen("messages", (data)=>{
-      setMessages(data.sort((a,b)=> (a.createdAt?.seconds||0)-(b.createdAt?.seconds||0)));
+    const u1 = fb.listen('messages', data => {
+      setMessages(data.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)));
     });
-  },[]);
+    const u2 = fbListen('accounts', setAccounts);
+    const u3 = fbListen('members', setMembers);
+    const t = setInterval(() => setOnlineIds(getOnlineUserIds()), 3000);
+    return () => { u1(); u2(); u3(); clearInterval(t); };
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior:'smooth' });
+  }, [messages]);
 
   const send = () => {
     if (!input.trim()) return;
-
-    const msg = {
-      id: 'msg' + Date.now(),
+    fb.add('messages', {
       userId: currentUser.id,
       pseudo: currentUser.pseudo,
       content: input.trim(),
-      time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' }),
       avatar: currentUser.avatar,
       color: currentUser.avatarColor
-    };
-
-    const updated = [...load(SK.messages, DEFAULT_MESSAGES), msg];
-    save(SK.messages, updated);
-    setMessages(updated);
+    });
     setInput('');
   };
 
@@ -864,78 +824,34 @@ function Chat({ currentUser }) {
     .filter(Boolean);
 
   return (
-    <div className="page-enter" style={{ height: 'calc(100vh - var(--topbar-h) - 40px)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        
+    <div className="page-enter" style={{ height:'calc(100vh - var(--topbar-h) - 40px)', display:'flex', flexDirection:'column' }}>
+      <div style={{ flex:1, display:'flex', minHeight:0, background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:'var(--radius-lg)', overflow:'hidden' }}>
         <div className="chat-main">
-
-          {/* HEADER */}
-          <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-red)' }}></span>
-            <span style={{ fontSize: 13, fontWeight: 700 }}># canal général</span>
-
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', background:'var(--bg-tertiary)', display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ width:8, height:8, borderRadius:'50%', background:'var(--accent-red)' }}></span>
+            <span style={{ fontSize:13, fontWeight:700 }}># canal général</span>
+            <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
               {onlineMembers.slice(0, 5).map(m => (
-                <div key={m.id} style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  background: m.avatarColor,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 9,
-                  color: '#fff'
-                }}>
-                  {m.avatar}
-                </div>
+                <div key={m.id} style={{ width:20, height:20, borderRadius:'50%', background:m.avatarColor, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#fff' }}>{m.avatar}</div>
               ))}
             </div>
           </div>
-
-          {/* MESSAGES */}
           <div className="chat-messages">
-
-            {messages.length === 0 && (
-              <div style={{
-                textAlign: 'center',
-                color: 'var(--text-muted)',
-                fontSize: 12,
-                padding: '20px 0'
-              }}>
-                Aucun message
-              </div>
-            )}
-
+            {messages.length === 0 && <div style={{ textAlign:'center', color:'var(--text-muted)', fontSize:12, padding:'20px 0' }}>Aucun message</div>}
             {messages.map(m => (
               <div key={m.id} className={`chat-msg ${m.userId === currentUser.id ? 'mine' : 'theirs'}`}>
                 <div className="chat-msg-bubble">{m.content}</div>
-                <div className="chat-msg-meta">
-                  {m.pseudo} • {m.time}
-                </div>
+                <div className="chat-msg-meta">{m.pseudo} • {m.time}</div>
               </div>
             ))}
-
             <div ref={messagesEndRef} />
-
           </div>
-
-          {/* INPUT */}
           <div className="chat-input-area">
             <div className="chat-input-row">
-              <input
-                className="chat-input"
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && send()}
-                placeholder="Message..."
-              />
-              <button className="chat-send-btn" onClick={send}>
-                Envoyer
-              </button>
+              <input className="chat-input" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Message..." />
+              <button className="chat-send-btn" onClick={send}>Envoyer</button>
             </div>
           </div>
-
         </div>
       </div>
     </div>
@@ -943,42 +859,11 @@ function Chat({ currentUser }) {
 }
 
 // ─── MAP ─────────────────────────────────────────────────────────────────────
-const MAP_LOCATIONS = [
-  { id:'loc1', name:'Maze Bank Tower', zone:'Downtown LS', type:'Cible', x:47, y:55, color:'#c0392b' },
-  { id:'loc2', name:'Maze Bank Arena', zone:'LSIA', type:'Planque', x:38, y:65, color:'#c9a84c' },
-  { id:'loc3', name:'Paleto Bay', zone:'Nord Blaine', type:'Zone opé.', x:28, y:8, color:'#00d084' },
-  { id:'loc4', name:'Sandy Shores', zone:'Grand Senora', type:'Zone opé.', x:72, y:32, color:'#7a90a8' },
-  { id:'loc5', name:'Fort Zancudo', zone:'Lago Zancudo', type:'Cible', x:22, y:38, color:'#c0392b' },
-  { id:'loc6', name:'LSIA', zone:'Elysian Island', type:'Planque', x:44, y:72, color:'#c9a84c' },
-  { id:'loc7', name:'Mount Chiliad', zone:'Alamo Sea', type:'Zone opé.', x:68, y:18, color:'#00d084' },
-  { id:'loc8', name:'Del Perro', zone:'West LS', type:'Planque', x:30, y:60, color:'#c9a84c' },
-  { id:'loc9', name:'Vinewood Hills', zone:'North LS', type:'Zone opé.', x:48, y:40, color:'#00d084' },
-  { id:'loc10', name:'Terminal', zone:'Port', type:'Cible', x:56, y:74, color:'#c0392b' },
-];
-
 function MapPage() {
   return (
-    <div className="page-enter" style={{ height: 'calc(100vh - var(--topbar-h) - 40px)' }}>
-      
-      <div style={{
-        height: '100%',
-        borderRadius: 'var(--radius-lg)',
-        overflow: 'hidden',
-        border: '1px solid var(--border)',
-        background: '#000'
-      }}>
-        
-        <iframe
-          src="https://gtaweb.eu/en/gtao-map#ls&bg=satellite"
-          style={{
-            width: '100%',
-            height: '100%',
-            border: 'none'
-          }}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-        ></iframe>
-
+    <div className="page-enter" style={{ height:'calc(100vh - var(--topbar-h) - 40px)' }}>
+      <div style={{ height:'100%', borderRadius:'var(--radius-lg)', overflow:'hidden', border:'1px solid var(--border)', background:'#000' }}>
+        <iframe src="https://gtaweb.eu/en/gtao-map#ls&bg=satellite" style={{ width:'100%', height:'100%', border:'none' }} loading="lazy" referrerPolicy="no-referrer"></iframe>
       </div>
     </div>
   );
@@ -986,79 +871,81 @@ function MapPage() {
 
 // ─── ANNOUNCEMENTS ───────────────────────────────────────────────────────────
 function Announcements({ currentUser, perms }) {
-  const [anns, setAnns] = useState(() => load(SK.announcements, DEFAULT_ANNOUNCEMENTS));
+  const [anns, setAnns] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editModal, setEditModal] = useState(null);
   const [form, setForm] = useState({ title:'', content:'', priority:'medium' });
 
-  const addAnn = () => {
-    if(!form.title||!form.content) return;
-    const na = { id:'a'+Date.now(), ...form, author:currentUser.pseudo, date:fmtDate() };
-    const updated = [na, ...anns];
-    setAnns(updated); save(SK.announcements, updated);
+  useEffect(() => {
+    return fbListen('announcements', setAnns);
+  }, []);
+
+  const addAnn = async () => {
+    if (!form.title || !form.content) return;
+    await fbAdd('announcements', { ...form, author:currentUser.pseudo, date:fmtDate() });
     pushLog('modification', `Annonce publiée: "${form.title}" par ${currentUser.pseudo}`, 'info');
-    setShowModal(false); setForm({ title:'', content:'', priority:'medium' });
+    setShowModal(false);
+    setForm({ title:'', content:'', priority:'medium' });
   };
 
-  const saveEdit = () => {
-    if(!editModal) return;
-    const updated = anns.map(a => a.id===editModal.id ? {...editModal} : a);
-    setAnns(updated); save(SK.announcements, updated);
+  const saveEdit = async () => {
+    if (!editModal) return;
+    const { id, createdAt, ...data } = editModal;
+    await fbSet('announcements', id, data);
     setEditModal(null);
   };
 
-  const deleteAnn = id => {
-    const updated = anns.filter(a => a.id !== id);
-    setAnns(updated); save(SK.announcements, updated);
+  const deleteAnn = async id => {
+    await fbDelete('announcements', id);
     pushLog('suppression', `Annonce supprimée par ${currentUser.pseudo}`, 'warn');
   };
 
-  const canManageAnn = a => currentUser.grade==='Heritier' || a.author===currentUser.pseudo;
+  const canManageAnn = a => currentUser.grade === 'Heritier' || a.author === currentUser.pseudo;
 
   return (
     <div className="page-enter">
-      {perms.announcements_post && <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}><button className="btn btn-primary btn-sm" onClick={()=>setShowModal(true)}>+ Nouvelle annonce</button></div>}
-      {anns.length===0 && <div style={{textAlign:'center',color:'var(--text-muted)',fontSize:12,fontFamily:'var(--font-mono)',padding:'40px 0'}}>Aucune annonce publiée</div>}
-      {anns.map(a=>(
+      {perms.announcements_post && <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:16 }}><button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Nouvelle annonce</button></div>}
+      {anns.length === 0 && <div style={{ textAlign:'center', color:'var(--text-muted)', fontSize:12, fontFamily:'var(--font-mono)', padding:'40px 0' }}>Aucune annonce publiée</div>}
+      {anns.map(a => (
         <div className={`announcement ${a.priority}`} key={a.id}>
-          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
             <div className="ann-title">{a.title}</div>
-            <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
-              <span className={`badge badge-${a.priority==='high'?'red':a.priority==='medium'?'gold':'gray'}`}>{a.priority==='high'?'URGENT':a.priority==='medium'?'IMPORTANT':'INFO'}</span>
+            <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
+              <span className={`badge badge-${a.priority === 'high' ? 'red' : a.priority === 'medium' ? 'gold' : 'gray'}`}>{a.priority === 'high' ? 'URGENT' : a.priority === 'medium' ? 'IMPORTANT' : 'INFO'}</span>
               {canManageAnn(a) && <>
-                <button className="btn btn-secondary btn-sm" onClick={()=>setEditModal({...a})}>✏</button>
-                <button className="btn btn-danger btn-sm" onClick={()=>deleteAnn(a.id)}>🗑</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => setEditModal({ ...a })}>✏</button>
+                <button className="btn btn-danger btn-sm" onClick={() => deleteAnn(a.id)}>🗑</button>
               </>}
             </div>
           </div>
-          <div className="ann-body" style={{marginTop:8}}>{a.content}</div>
+          <div className="ann-body" style={{ marginTop:8 }}>{a.content}</div>
           <div className="ann-meta"><span>{a.author}</span><span>{a.date}</span></div>
         </div>
       ))}
 
       {showModal && (
-        <Modal title="Nouvelle Annonce" onClose={()=>setShowModal(false)}
-          footer={<><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addAnn}>Publier</button></>}>
-          <div className="form-group"><label className="label">TITRE</label><input className="input" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} /></div>
+        <Modal title="Nouvelle Annonce" onClose={() => setShowModal(false)}
+          footer={<><button className="btn btn-secondary" onClick={() => setShowModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addAnn}>Publier</button></>}>
+          <div className="form-group"><label className="label">TITRE</label><input className="input" value={form.title} onChange={e => setForm({ ...form, title:e.target.value })} /></div>
           <div className="form-group"><label className="label">PRIORITÉ</label>
-            <select className="select" value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})}>
+            <select className="select" value={form.priority} onChange={e => setForm({ ...form, priority:e.target.value })}>
               <option value="high">Urgent</option><option value="medium">Important</option><option value="low">Information</option>
             </select>
           </div>
-          <div className="form-group"><label className="label">CONTENU</label><textarea className="input" rows={5} value={form.content} onChange={e=>setForm({...form,content:e.target.value})} style={{resize:'none'}} /></div>
+          <div className="form-group"><label className="label">CONTENU</label><textarea className="input" rows={5} value={form.content} onChange={e => setForm({ ...form, content:e.target.value })} style={{ resize:'none' }} /></div>
         </Modal>
       )}
 
       {editModal && (
-        <Modal title="Modifier l'Annonce" onClose={()=>setEditModal(null)}
-          footer={<><button className="btn btn-secondary" onClick={()=>setEditModal(null)}>Annuler</button><button className="btn btn-primary" onClick={saveEdit}>Sauvegarder</button></>}>
-          <div className="form-group"><label className="label">TITRE</label><input className="input" value={editModal.title} onChange={e=>setEditModal({...editModal,title:e.target.value})} /></div>
+        <Modal title="Modifier l'Annonce" onClose={() => setEditModal(null)}
+          footer={<><button className="btn btn-secondary" onClick={() => setEditModal(null)}>Annuler</button><button className="btn btn-primary" onClick={saveEdit}>Sauvegarder</button></>}>
+          <div className="form-group"><label className="label">TITRE</label><input className="input" value={editModal.title} onChange={e => setEditModal({ ...editModal, title:e.target.value })} /></div>
           <div className="form-group"><label className="label">PRIORITÉ</label>
-            <select className="select" value={editModal.priority} onChange={e=>setEditModal({...editModal,priority:e.target.value})}>
+            <select className="select" value={editModal.priority} onChange={e => setEditModal({ ...editModal, priority:e.target.value })}>
               <option value="high">Urgent</option><option value="medium">Important</option><option value="low">Information</option>
             </select>
           </div>
-          <div className="form-group"><label className="label">CONTENU</label><textarea className="input" rows={5} value={editModal.content} onChange={e=>setEditModal({...editModal,content:e.target.value})} style={{resize:'none'}} /></div>
+          <div className="form-group"><label className="label">CONTENU</label><textarea className="input" rows={5} value={editModal.content} onChange={e => setEditModal({ ...editModal, content:e.target.value })} style={{ resize:'none' }} /></div>
         </Modal>
       )}
     </div>
@@ -1067,50 +954,53 @@ function Announcements({ currentUser, perms }) {
 
 // ─── LOGS ────────────────────────────────────────────────────────────────────
 function Logs({ currentUser, perms }) {
-  const [logs, setLogs] = useState(() => load(SK.logs, DEFAULT_LOGS));
+  const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
-    const t = setInterval(() => setLogs(load(SK.logs, DEFAULT_LOGS)), 3000);
-    return () => clearInterval(t);
+    return fbListen('logs', data => {
+      setLogs(data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+    });
   }, []);
 
-  if(!perms.logs_view) {
+  if (!perms.logs_view) {
     return (
-      <div className="page-enter" style={{display:'flex',alignItems:'center',justifyContent:'center',height:300}}>
-        <div style={{textAlign:'center'}}>
-          <div style={{fontSize:40,marginBottom:16}}>🔒</div>
-          <div style={{fontSize:16,fontWeight:700,color:'var(--text-primary)',marginBottom:8}}>Accès Refusé</div>
-          <div style={{fontSize:12,fontFamily:'var(--font-mono)',color:'var(--text-muted)'}}>Logs réservés selon vos permissions</div>
-          <div style={{marginTop:16}}><span className="badge badge-red">GRADE INSUFFISANT</span></div>
+      <div className="page-enter" style={{ display:'flex', alignItems:'center', justifyContent:'center', height:300 }}>
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:40, marginBottom:16 }}>🔒</div>
+          <div style={{ fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:8 }}>Accès Refusé</div>
+          <div style={{ fontSize:12, fontFamily:'var(--font-mono)', color:'var(--text-muted)' }}>Logs réservés selon vos permissions</div>
+          <div style={{ marginTop:16 }}><span className="badge badge-red">GRADE INSUFFISANT</span></div>
         </div>
       </div>
     );
   }
 
-  const typeIcon = t => ({ connexion:'🔑', transfert:'🔁', modification:'✏️', suppression:'🗑️', stock:'📦' }[t]||'•');
-  const filtered = filter==='all' ? logs : logs.filter(l=>l.level===filter);
+  const typeIcon = t => ({ connexion:'🔑', transfert:'🔁', modification:'✏️', suppression:'🗑️', stock:'📦' }[t] || '•');
+  const filtered = filter === 'all' ? logs : logs.filter(l => l.level === filter);
 
-  const clearLogs = () => { save(SK.logs,[]); setLogs([]); };
+  const clearLogs = async () => {
+    for (const l of logs) { await fbDelete('logs', l.id); }
+  };
 
   return (
     <div className="page-enter">
-      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
-        <div style={{background:'var(--vmf-accent-glow)',border:'1px solid rgba(192,57,43,0.3)',borderRadius:'var(--radius)',padding:'8px 14px',fontSize:11,fontFamily:'var(--font-mono)',color:'var(--accent-red)',display:'flex',gap:8,flex:1}}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16, flexWrap:'wrap' }}>
+        <div style={{ background:'var(--vmf-accent-glow)', border:'1px solid rgba(192,57,43,0.3)', borderRadius:'var(--radius)', padding:'8px 14px', fontSize:11, fontFamily:'var(--font-mono)', color:'var(--accent-red)', display:'flex', gap:8, flex:1 }}>
           <span>⚠</span><span>ACCÈS RESTREINT — Journaux confidentiels</span>
         </div>
-        <div style={{display:'flex',gap:6}}>
-          {['all','info','warn','danger'].map(f=>(
-            <button key={f} className={`btn btn-secondary btn-sm ${filter===f?'btn-primary':''}`} onClick={()=>setFilter(f)}>{f==='all'?'Tout':f.toUpperCase()}</button>
+        <div style={{ display:'flex', gap:6 }}>
+          {['all','info','warn','danger'].map(f => (
+            <button key={f} className={`btn btn-secondary btn-sm ${filter === f ? 'btn-primary' : ''}`} onClick={() => setFilter(f)}>{f === 'all' ? 'Tout' : f.toUpperCase()}</button>
           ))}
         </div>
-        {currentUser.grade==='Heritier' && <button className="btn btn-danger btn-sm" onClick={clearLogs}>Effacer</button>}
+        {currentUser.grade === 'Heritier' && <button className="btn btn-danger btn-sm" onClick={clearLogs}>Effacer</button>}
       </div>
       <div className="card">
         <div className="card-header"><span className="card-title">📋 Journaux Système</span><span className="card-subtitle">{filtered.length} entrées</span></div>
-        {filtered.length===0
-          ? <div style={{padding:30,textAlign:'center',color:'var(--text-muted)',fontSize:11,fontFamily:'var(--font-mono)'}}>Aucune entrée</div>
-          : filtered.map(l=>(
+        {filtered.length === 0
+          ? <div style={{ padding:30, textAlign:'center', color:'var(--text-muted)', fontSize:11, fontFamily:'var(--font-mono)' }}>Aucune entrée</div>
+          : filtered.map(l => (
             <div key={l.id} className="log-entry">
               <span className="log-time">{l.date} {l.time}</span>
               <span className="log-icon">{typeIcon(l.type)}</span>
@@ -1126,23 +1016,46 @@ function Logs({ currentUser, perms }) {
 
 // ─── PERMISSIONS ─────────────────────────────────────────────────────────────
 function Permissions({ currentUser }) {
-  const [perms, setPerms] = useState(() => load(SK.permissions, DEFAULT_PERMISSIONS));
+  const [perms, setPerms] = useState(null);
 
-  const toggle = (grade, perm) => {
-    const updated = { ...perms, [grade]: { ...perms[grade], [perm]: !perms[grade][perm] } };
-    setPerms(updated); save(SK.permissions, updated);
+  useEffect(() => {
+    return fbListen('permissions', data => {
+      if (data.length > 0) {
+        // stocké comme un seul doc "config"
+        const doc = data.find(d => d.id === 'config');
+        if (doc) {
+          const { id, createdAt, ...p } = doc;
+          setPerms(p);
+        } else {
+          setPerms(null);
+        }
+      } else {
+        setPerms(null);
+      }
+    });
+  }, []);
+
+  const effectivePerms = perms || DEFAULT_PERMISSIONS;
+
+  const toggle = async (grade, perm) => {
+    const updated = { ...effectivePerms, [grade]: { ...effectivePerms[grade], [perm]: !effectivePerms[grade][perm] } };
+    setPerms(updated);
+    await fbSet('permissions', 'config', updated);
     pushLog('modification', `Permission "${perm}" pour ${grade} modifiée par ${currentUser.pseudo}`, 'warn');
   };
 
-  const reset = () => { setPerms(DEFAULT_PERMISSIONS); save(SK.permissions, DEFAULT_PERMISSIONS); };
+  const reset = async () => {
+    setPerms(DEFAULT_PERMISSIONS);
+    await fbSet('permissions', 'config', DEFAULT_PERMISSIONS);
+  };
 
-  if(currentUser.grade!=='Heritier') {
+  if (currentUser.grade !== 'Heritier') {
     return (
-      <div className="page-enter" style={{display:'flex',alignItems:'center',justifyContent:'center',height:300}}>
-        <div style={{textAlign:'center'}}>
-          <div style={{fontSize:40,marginBottom:16}}>🔒</div>
-          <div style={{fontSize:16,fontWeight:700,color:'var(--text-primary)',marginBottom:8}}>Accès Refusé</div>
-          <div style={{fontSize:12,fontFamily:'var(--font-mono)',color:'var(--text-muted)'}}>Configuration des permissions réservée à l'Héritier</div>
+      <div className="page-enter" style={{ display:'flex', alignItems:'center', justifyContent:'center', height:300 }}>
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:40, marginBottom:16 }}>🔒</div>
+          <div style={{ fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:8 }}>Accès Refusé</div>
+          <div style={{ fontSize:12, fontFamily:'var(--font-mono)', color:'var(--text-muted)' }}>Configuration des permissions réservée à l'Héritier</div>
         </div>
       </div>
     );
@@ -1150,30 +1063,26 @@ function Permissions({ currentUser }) {
 
   return (
     <div className="page-enter">
-      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:16 }}>
         <button className="btn btn-secondary btn-sm" onClick={reset}>↺ Réinitialiser</button>
       </div>
-      <div className="card" style={{overflowX:'auto'}}>
+      <div className="card" style={{ overflowX:'auto' }}>
         <table className="perm-table">
           <thead>
             <tr>
-              <th style={{minWidth:200}}>PERMISSION</th>
-              {GRADES.map(g=><th key={g} style={{textAlign:'center'}}><span className={gradeClass(g)}>{g}</span></th>)}
+              <th style={{ minWidth:200 }}>PERMISSION</th>
+              {GRADES.map(g => <th key={g} style={{ textAlign:'center' }}><span className={gradeClass(g)}>{g}</span></th>)}
             </tr>
           </thead>
           <tbody>
-            {Object.entries(PERM_LABELS).map(([key, label])=>(
+            {Object.entries(PERM_LABELS).map(([key, label]) => (
               <tr key={key}>
-                <td style={{color:'var(--text-secondary)',fontSize:12}}>{label}</td>
-                {GRADES.map(g=>(
-                  <td key={g} style={{textAlign:'center'}}>
-                    {g==='Heritier'
-                      ? <span title="Toujours actif" style={{fontSize:16}}>✅</span>
-                      : <button
-                          className={`perm-toggle ${perms[g]?.[key]?'on':'off'}`}
-                          onClick={()=>toggle(g,key)}
-                          title={perms[g]?.[key]?'Actif — cliquer pour désactiver':'Inactif — cliquer pour activer'}
-                        />
+                <td style={{ color:'var(--text-secondary)', fontSize:12 }}>{label}</td>
+                {GRADES.map(g => (
+                  <td key={g} style={{ textAlign:'center' }}>
+                    {g === 'Heritier'
+                      ? <span title="Toujours actif" style={{ fontSize:16 }}>✅</span>
+                      : <button className={`perm-toggle ${effectivePerms[g]?.[key] ? 'on' : 'off'}`} onClick={() => toggle(g, key)} />
                     }
                   </td>
                 ))}
@@ -1186,69 +1095,72 @@ function Permissions({ currentUser }) {
   );
 }
 
-// ─── ACCOUNT MANAGEMENT (Héritier only) ──────────────────────────────────────
+// ─── ACCOUNT MANAGER ─────────────────────────────────────────────────────────
 function AccountManager({ currentUser }) {
-  const [accounts, setAccounts] = useState(() => load(SK.users, DEFAULT_ACCOUNTS));
-  const members = load(SK.members, DEFAULT_MEMBERS);
+  const [accounts, setAccounts] = useState([]);
+  const [members, setMembers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ memberId:'', username:'', password:'' });
   const [showPassFor, setShowPassFor] = useState(null);
 
-  if(currentUser.grade!=='Heritier') {
+  useEffect(() => {
+    const u1 = fbListen('accounts', setAccounts);
+    const u2 = fbListen('members', setMembers);
+    return () => { u1(); u2(); };
+  }, []);
+
+  if (currentUser.grade !== 'Heritier') {
     return (
-      <div className="page-enter" style={{display:'flex',alignItems:'center',justifyContent:'center',height:300}}>
-        <div style={{textAlign:'center'}}><div style={{fontSize:40,marginBottom:16}}>🔒</div><div style={{fontSize:16,fontWeight:700}}>Accès Réservé à l'Héritier</div></div>
+      <div className="page-enter" style={{ display:'flex', alignItems:'center', justifyContent:'center', height:300 }}>
+        <div style={{ textAlign:'center' }}><div style={{ fontSize:40, marginBottom:16 }}>🔒</div><div style={{ fontSize:16, fontWeight:700 }}>Accès Réservé à l'Héritier</div></div>
       </div>
     );
   }
 
-  const createAccount = () => {
-    if(!form.memberId||!form.username||!form.password) return;
-    if(accounts.find(a=>a.username===form.username)) { alert('Identifiant déjà utilisé'); return; }
-    const na = { id:'u'+Date.now(), username:form.username, password:form.password, memberId:form.memberId };
-    const updated = [...accounts, na];
-    setAccounts(updated); save(SK.users, updated);
+  const createAccount = async () => {
+    if (!form.memberId || !form.username || !form.password) return;
+    if (accounts.find(a => a.username === form.username)) { alert('Identifiant déjà utilisé'); return; }
+    const id = 'u' + Date.now();
+    await fbSet('accounts', id, { username:form.username, password:form.password, memberId:form.memberId });
     pushLog('connexion', `Nouveau compte créé: ${form.username} par ${currentUser.pseudo}`, 'info');
-    setShowModal(false); setForm({ memberId:'', username:'', password:'' });
+    setShowModal(false);
+    setForm({ memberId:'', username:'', password:'' });
   };
 
-  const deleteAccount = id => {
-    if(id===currentUser.id) { alert('Impossible de supprimer votre propre compte.'); return; }
-    const updated = accounts.filter(a=>a.id!==id);
-    setAccounts(updated); save(SK.users, updated);
+  const deleteAccount = async id => {
+    if (id === currentUser.id) { alert('Impossible de supprimer votre propre compte.'); return; }
+    await fbDelete('accounts', id);
     removeSession(id);
     pushLog('suppression', `Compte supprimé par ${currentUser.pseudo}`, 'danger');
   };
 
-  const memberWithoutAccount = members.filter(m=>!accounts.find(a=>a.memberId===m.id));
-
   return (
     <div className="page-enter">
-      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
-        <div style={{background:'var(--gold-dim)',border:'1px solid rgba(201,168,76,0.3)',borderRadius:'var(--radius)',padding:'8px 14px',fontSize:11,fontFamily:'var(--font-mono)',color:'var(--gold)',flex:1}}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
+        <div style={{ background:'var(--gold-dim)', border:'1px solid rgba(201,168,76,0.3)', borderRadius:'var(--radius)', padding:'8px 14px', fontSize:11, fontFamily:'var(--font-mono)', color:'var(--gold)', flex:1 }}>
           👑 Seul l'Héritier peut créer des comptes. Partagez les identifiants en privé.
         </div>
-        <button className="btn btn-primary btn-sm" onClick={()=>setShowModal(true)}>+ Créer un compte</button>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>+ Créer un compte</button>
       </div>
       <div className="card">
         <table className="data-table">
           <thead><tr><th>IDENTIFIANT</th><th>MEMBRE LIÉ</th><th>MOT DE PASSE</th><th>ACTION</th></tr></thead>
           <tbody>
-            {accounts.map(a=>{
-              const member = members.find(m=>m.id===a.memberId);
+            {accounts.map(a => {
+              const member = members.find(m => m.id === a.memberId);
               return (
                 <tr key={a.id}>
-                  <td style={{color:'var(--text-primary)',fontWeight:600,fontFamily:'var(--font-mono)'}}>{a.username}</td>
-                  <td>{member ? <span className={gradeClass(member.grade)} style={{fontWeight:600}}>{member.pseudo} — {member.grade}</span> : <span style={{color:'var(--accent-red)'}}>Membre introuvable</span>}</td>
+                  <td style={{ color:'var(--text-primary)', fontWeight:600, fontFamily:'var(--font-mono)' }}>{a.username}</td>
+                  <td>{member ? <span className={gradeClass(member.grade)} style={{ fontWeight:600 }}>{member.pseudo} — {member.grade}</span> : <span style={{ color:'var(--accent-red)' }}>Membre introuvable</span>}</td>
                   <td>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <span style={{fontFamily:'var(--font-mono)',fontSize:12}}>{showPassFor===a.id ? a.password : '••••••••'}</span>
-                      <button className="btn btn-secondary btn-sm" onClick={()=>setShowPassFor(showPassFor===a.id?null:a.id)}>{showPassFor===a.id?'🙈':'👁'}</button>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontFamily:'var(--font-mono)', fontSize:12 }}>{showPassFor === a.id ? a.password : '••••••••'}</span>
+                      <button className="btn btn-secondary btn-sm" onClick={() => setShowPassFor(showPassFor === a.id ? null : a.id)}>{showPassFor === a.id ? '🙈' : '👁'}</button>
                     </div>
                   </td>
                   <td>
-                    {a.id!==currentUser.id && <button className="btn btn-danger btn-sm" onClick={()=>deleteAccount(a.id)}>🗑 Supprimer</button>}
-                    {a.id===currentUser.id && <span style={{fontSize:10,fontFamily:'var(--font-mono)',color:'var(--text-muted)'}}>Vous</span>}
+                    {a.id !== currentUser.id && <button className="btn btn-danger btn-sm" onClick={() => deleteAccount(a.id)}>🗑 Supprimer</button>}
+                    {a.id === currentUser.id && <span style={{ fontSize:10, fontFamily:'var(--font-mono)', color:'var(--text-muted)' }}>Vous</span>}
                   </td>
                 </tr>
               );
@@ -1258,21 +1170,21 @@ function AccountManager({ currentUser }) {
       </div>
 
       {showModal && (
-        <Modal title="Créer un Compte" onClose={()=>setShowModal(false)}
-          footer={<><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Annuler</button><button className="btn btn-primary" onClick={createAccount}>Créer</button></>}>
+        <Modal title="Créer un Compte" onClose={() => setShowModal(false)}
+          footer={<><button className="btn btn-secondary" onClick={() => setShowModal(false)}>Annuler</button><button className="btn btn-primary" onClick={createAccount}>Créer</button></>}>
           <div className="form-group"><label className="label">MEMBRE À LIER</label>
-            <select className="select" value={form.memberId} onChange={e=>setForm({...form,memberId:e.target.value})}>
+            <select className="select" value={form.memberId} onChange={e => setForm({ ...form, memberId:e.target.value })}>
               <option value="">Sélectionner un membre...</option>
-              {members.map(m=>(
-                <option key={m.id} value={m.id} disabled={!!accounts.find(a=>a.memberId===m.id)}>
-                  {m.pseudo} — {m.grade}{accounts.find(a=>a.memberId===m.id)?' (compte existant)':''}
+              {members.map(m => (
+                <option key={m.id} value={m.id} disabled={!!accounts.find(a => a.memberId === m.id)}>
+                  {m.pseudo} — {m.grade}{accounts.find(a => a.memberId === m.id) ? ' (compte existant)' : ''}
                 </option>
               ))}
             </select>
           </div>
-          <div className="form-group"><label className="label">IDENTIFIANT DE CONNEXION</label><input className="input" value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="Ex: ghost_nexus" autoComplete="off" /></div>
-          <div className="form-group"><label className="label">MOT DE PASSE</label><input type="text" className="input" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="Définissez un mot de passe fort" autoComplete="off" /></div>
-          <div style={{fontSize:10,fontFamily:'var(--font-mono)',color:'var(--text-muted)',background:'var(--bg-tertiary)',padding:'8px 12px',borderRadius:'var(--radius)'}}>⚠ Partagez ces identifiants de façon sécurisée au membre concerné.</div>
+          <div className="form-group"><label className="label">IDENTIFIANT DE CONNEXION</label><input className="input" value={form.username} onChange={e => setForm({ ...form, username:e.target.value })} placeholder="Ex: ghost_nexus" autoComplete="off" /></div>
+          <div className="form-group"><label className="label">MOT DE PASSE</label><input type="text" className="input" value={form.password} onChange={e => setForm({ ...form, password:e.target.value })} placeholder="Définissez un mot de passe fort" autoComplete="off" /></div>
+          <div style={{ fontSize:10, fontFamily:'var(--font-mono)', color:'var(--text-muted)', background:'var(--bg-tertiary)', padding:'8px 12px', borderRadius:'var(--radius)' }}>⚠ Partagez ces identifiants de façon sécurisée au membre concerné.</div>
         </Modal>
       )}
     </div>
@@ -1280,17 +1192,9 @@ function AccountManager({ currentUser }) {
 }
 
 // ─── STORAGE ─────────────────────────────────────────────────────────────────
-const ITEM_CATEGORIES = ['Arme','Drogue','Argent','Matériel','Véhicule','Document','Autre'];
-const DEFAULT_STORAGE = {
-  warehouses: [
-    { id:'wh1', name:'Entrepôt Principal', zone:'Cypress Flats', capacity:100, color:'#c0392b' },
-    { id:'wh2', name:'Planque Nord', zone:'Paleto Bay', capacity:50, color:'#c9a84c' },
-  ],
-  items: []
-};
-
 function Storage({ currentUser, perms }) {
-  const [data, setData] = useState(() => load(SK.storage, DEFAULT_STORAGE));
+  const [warehouses, setWarehouses] = useState([]);
+  const [items, setItems] = useState([]);
   const [selectedWh, setSelectedWh] = useState(null);
   const [showWhModal, setShowWhModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
@@ -1298,190 +1202,156 @@ function Storage({ currentUser, perms }) {
   const [itemForm, setItemForm] = useState({ name:'', category:'Matériel', qty:1, warehouseId:'', note:'' });
   const [filter, setFilter] = useState('all');
 
-  const saveData = (d) => { setData(d); save(SK.storage, d); };
+  useEffect(() => {
+    const u1 = fbListen('warehouses', setWarehouses);
+    const u2 = fbListen('storage_items', setItems);
+    return () => { u1(); u2(); };
+  }, []);
 
-  const addWarehouse = () => {
-    if(!whForm.name) return;
+  const addWarehouse = async () => {
+    if (!whForm.name) return;
     const colors = ['#c0392b','#c9a84c','#00d084','#60a5fa','#a78bfa'];
-    const nw = { id:'wh'+Date.now(), name:whForm.name, zone:whForm.zone, capacity:Number(whForm.capacity)||50, color:colors[data.warehouses.length%colors.length] };
-    const d = { ...data, warehouses:[...data.warehouses, nw] };
-    saveData(d);
+    await fbAdd('warehouses', { name:whForm.name, zone:whForm.zone, capacity:Number(whForm.capacity) || 50, color:colors[warehouses.length % colors.length] });
     pushLog('stock', `Entrepôt créé: ${whForm.name} par ${currentUser.pseudo}`, 'info');
-    setShowWhModal(false); setWhForm({ name:'', zone:'', capacity:50 });
+    setShowWhModal(false);
+    setWhForm({ name:'', zone:'', capacity:50 });
   };
 
-  const deleteWarehouse = (id) => {
-    const d = { warehouses: data.warehouses.filter(w=>w.id!==id), items: data.items.filter(i=>i.warehouseId!==id) };
-    saveData(d);
-    if(selectedWh===id) setSelectedWh(null);
+  const deleteWarehouse = async id => {
+    await fbDelete('warehouses', id);
+    // supprimer les items liés
+    for (const item of items.filter(i => i.warehouseId === id)) {
+      await fbDelete('storage_items', item.id);
+    }
+    if (selectedWh === id) setSelectedWh(null);
   };
 
-  const addItem = () => {
-    if(!itemForm.name||!itemForm.warehouseId) return;
-    const ni = { id:'item'+Date.now(), name:itemForm.name, category:itemForm.category, qty:Number(itemForm.qty)||1, warehouseId:itemForm.warehouseId, note:itemForm.note, addedBy:currentUser.pseudo, date:fmtDate() };
-    const d = { ...data, items:[...data.items, ni] };
-    saveData(d);
-    pushLog('stock', `Objet ajouté: ${ni.qty}x ${ni.name} (${ni.category}) par ${currentUser.pseudo}`, 'info');
-    setShowItemModal(false); setItemForm({ name:'', category:'Matériel', qty:1, warehouseId:'', note:'' });
+  const addItem = async () => {
+    if (!itemForm.name || !itemForm.warehouseId) return;
+    await fbAdd('storage_items', { name:itemForm.name, category:itemForm.category, qty:Number(itemForm.qty) || 1, warehouseId:itemForm.warehouseId, note:itemForm.note, addedBy:currentUser.pseudo, date:fmtDate() });
+    pushLog('stock', `Objet ajouté: ${itemForm.qty}x ${itemForm.name} (${itemForm.category}) par ${currentUser.pseudo}`, 'info');
+    setShowItemModal(false);
+    setItemForm({ name:'', category:'Matériel', qty:1, warehouseId:'', note:'' });
   };
 
-  const deleteItem = (id) => {
-    const item = data.items.find(i=>i.id===id);
-    const d = { ...data, items: data.items.filter(i=>i.id!==id) };
-    saveData(d);
+  const deleteItem = async id => {
+    const item = items.find(i => i.id === id);
+    await fbDelete('storage_items', id);
     pushLog('stock', `Objet retiré: ${item?.name} par ${currentUser.pseudo}`, 'warn');
   };
 
-  const catColor = c => ({ 'Arme':'#c0392b','Drogue':'#00d084','Argent':'#c9a84c','Matériel':'#60a5fa','Véhicule':'#a78bfa','Document':'#7a90a8','Autre':'#3d5470' }[c]||'#3d5470');
-  const catIcon = c => ({ 'Arme':'🗡','Drogue':'💊','Argent':'💰','Matériel':'🔧','Véhicule':'🚗','Document':'📄','Autre':'📦' }[c]||'📦');
+  const catColor = c => ({ 'Arme':'#c0392b','Drogue':'#00d084','Argent':'#c9a84c','Matériel':'#60a5fa','Véhicule':'#a78bfa','Document':'#7a90a8','Autre':'#3d5470' }[c] || '#3d5470');
+  const catIcon = c => ({ 'Arme':'🗡','Drogue':'💊','Argent':'💰','Matériel':'🔧','Véhicule':'🚗','Document':'📄','Autre':'📦' }[c] || '📦');
 
-  const visibleItems = data.items.filter(i => {
-    if(selectedWh && i.warehouseId!==selectedWh) return false;
-    if(filter!=='all' && i.category!==filter) return false;
+  const visibleItems = items.filter(i => {
+    if (selectedWh && i.warehouseId !== selectedWh) return false;
+    if (filter !== 'all' && i.category !== filter) return false;
     return true;
   });
 
-  const getWhName = id => data.warehouses.find(w=>w.id===id)?.name || '?';
-  const getWhUsage = id => data.items.filter(i=>i.warehouseId===id).reduce((s,i)=>s+i.qty,0);
-  const totalItems = data.items.length;
-  const totalQty = data.items.reduce((s,i)=>s+i.qty,0);
+  const getWhName = id => warehouses.find(w => w.id === id)?.name || '?';
+  const getWhUsage = id => items.filter(i => i.warehouseId === id).reduce((s, i) => s + i.qty, 0);
 
   return (
     <div className="page-enter">
-      {/* Stats */}
-      <div className="stats-grid" style={{marginBottom:16}}>
+      <div className="stats-grid" style={{ marginBottom:16 }}>
         <div className="stat-card green">
           <div className="stat-label">Entrepôts</div>
-          <div className="stat-value">{data.warehouses.length}</div>
+          <div className="stat-value">{warehouses.length}</div>
           <div className="stat-sub">Actifs</div>
           <span className="stat-icon">🏭</span>
         </div>
         <div className="stat-card gold">
           <div className="stat-label">Références</div>
-          <div className="stat-value">{totalItems}</div>
-          <div className="stat-sub">{totalQty} unités au total</div>
+          <div className="stat-value">{items.length}</div>
+          <div className="stat-sub">{items.reduce((s, i) => s + i.qty, 0)} unités totales</div>
           <span className="stat-icon">📦</span>
         </div>
-        <div className="stat-card red">
-          <div className="stat-label">Capacité Totale</div>
-          <div className="stat-value">{data.warehouses.reduce((s,w)=>s+w.capacity,0)}</div>
-          <div className="stat-sub">unités max</div>
-          <span className="stat-icon">📊</span>
-        </div>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'260px 1fr',gap:16,alignItems:'start'}}>
-        {/* Liste entrepôts */}
-        <div>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-            <span style={{fontSize:10,fontFamily:'var(--font-mono)',color:'var(--text-muted)',letterSpacing:'0.1em'}}>ENTREPÔTS</span>
-            {currentUser.grade==='Heritier' && <button className="btn btn-primary btn-sm" onClick={()=>setShowWhModal(true)}>+ Nouveau</button>}
+      <div className="grid-2" style={{ marginBottom:16 }}>
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">🏭 Entrepôts</span>
+            {currentUser.grade === 'Heritier' && <button className="btn btn-primary btn-sm" style={{ marginLeft:'auto' }} onClick={() => setShowWhModal(true)}>+ Ajouter</button>}
           </div>
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            <div onClick={()=>setSelectedWh(null)}
-              style={{background:'var(--bg-card)',border:`1px solid ${!selectedWh?'var(--accent-red)':'var(--border)'}`,borderRadius:'var(--radius)',padding:'10px 12px',cursor:'pointer',transition:'border-color 0.15s'}}>
-              <div style={{fontSize:12,fontWeight:700,color:'var(--text-primary)'}}>🏭 Tous les entrepôts</div>
-              <div style={{fontSize:9,fontFamily:'var(--font-mono)',color:'var(--text-muted)',marginTop:2}}>{totalItems} références · {totalQty} unités</div>
-            </div>
-            {data.warehouses.map(wh=>{
-              const usage = getWhUsage(wh.id);
-              const pct = Math.min(100, Math.round((usage/wh.capacity)*100));
-              return (
-                <div key={wh.id} onClick={()=>setSelectedWh(wh.id)}
-                  style={{background:'var(--bg-card)',border:`1px solid ${selectedWh===wh.id?wh.color+'88':'var(--border)'}`,borderLeft:`3px solid ${wh.color}`,borderRadius:'var(--radius)',padding:'10px 12px',cursor:'pointer',transition:'all 0.15s'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                    <div>
-                      <div style={{fontSize:12,fontWeight:700,color:'var(--text-primary)'}}>{wh.name}</div>
-                      <div style={{fontSize:9,fontFamily:'var(--font-mono)',color:'var(--text-muted)',marginTop:1}}>{wh.zone}</div>
-                    </div>
-                    {currentUser.grade==='Heritier' && <button className="btn btn-danger btn-sm" style={{padding:'2px 6px',fontSize:10}} onClick={e=>{e.stopPropagation();deleteWarehouse(wh.id);}}>🗑</button>}
+          <div>
+            {warehouses.length === 0
+              ? <div style={{ padding:20, textAlign:'center', color:'var(--text-muted)', fontSize:12 }}>Aucun entrepôt</div>
+              : warehouses.map(w => (
+                <div key={w.id} onClick={() => setSelectedWh(selectedWh === w.id ? null : w.id)}
+                  style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', cursor:'pointer', background:selectedWh === w.id ? 'var(--vmf-accent-glow)' : 'transparent', display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ width:8, height:8, borderRadius:'50%', background:w.color, flexShrink:0 }}></div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:12, fontWeight:600, color:'var(--text-primary)' }}>{w.name}</div>
+                    <div style={{ fontSize:10, fontFamily:'var(--font-mono)', color:'var(--text-muted)' }}>{w.zone} • {getWhUsage(w.id)}/{w.capacity} unités</div>
+                    <div className="progress-bar" style={{ marginTop:4 }}><div className="progress-fill" style={{ width:`${Math.min(100, Math.round(getWhUsage(w.id) / w.capacity * 100))}%`, background:w.color }}></div></div>
                   </div>
-                  <div style={{marginTop:8}}>
-                    <div style={{display:'flex',justifyContent:'space-between',fontSize:9,fontFamily:'var(--font-mono)',color:'var(--text-muted)',marginBottom:4}}>
-                      <span>{usage} unités</span><span>{pct}% ({wh.capacity} max)</span>
-                    </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{width:`${pct}%`,background:pct>80?'var(--accent-red)':pct>50?'var(--gold)':'var(--accent-green)'}}></div>
-                    </div>
-                  </div>
+                  {currentUser.grade === 'Heritier' && <button className="btn btn-danger btn-sm" onClick={e => { e.stopPropagation(); deleteWarehouse(w.id); }}>🗑</button>}
                 </div>
-              );
-            })}
+              ))
+            }
           </div>
         </div>
 
-        {/* Contenu entrepôt */}
-        <div>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,flexWrap:'wrap',gap:6}}>
-            <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-              {['all',...ITEM_CATEGORIES].map(c=>(
-                <button key={c} className={`btn btn-secondary btn-sm ${filter===c?'btn-primary':''}`} style={{fontSize:10}} onClick={()=>setFilter(c)}>
-                  {c==='all'?'Tout':c}
-                </button>
-              ))}
-            </div>
-            <button className="btn btn-primary btn-sm" onClick={()=>{setItemForm({name:'',category:'Matériel',qty:1,warehouseId:selectedWh||data.warehouses[0]?.id||'',note:''});setShowItemModal(true);}}>+ Ajouter un objet</button>
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">📦 Inventaire {selectedWh ? `— ${getWhName(selectedWh)}` : ''}</span>
+            <button className="btn btn-primary btn-sm" style={{ marginLeft:'auto' }} onClick={() => setShowItemModal(true)}>+ Ajouter objet</button>
           </div>
-
-          <div className="card">
-            {visibleItems.length===0 ? (
-              <div style={{padding:40,textAlign:'center',color:'var(--text-muted)',fontSize:12,fontFamily:'var(--font-mono)'}}>
-                <div style={{fontSize:24,marginBottom:8}}>📦</div>
-                Aucun objet{selectedWh?' dans cet entrepôt':''}{filter!=='all'?' dans cette catégorie':''}
-              </div>
-            ) : (
-              <table className="data-table">
-                <thead><tr><th>OBJET</th><th>CATÉGORIE</th><th>QTÉ</th>{!selectedWh&&<th>ENTREPÔT</th>}<th>AJOUTÉ PAR</th><th>DATE</th><th>NOTE</th><th>ACTION</th></tr></thead>
-                <tbody>
-                  {visibleItems.map(item=>(
-                    <tr key={item.id}>
-                      <td style={{color:'var(--text-primary)',fontWeight:600}}>
-                        <span style={{marginRight:6}}>{catIcon(item.category)}</span>{item.name}
-                      </td>
-                      <td><span style={{fontSize:9,fontFamily:'var(--font-mono)',fontWeight:700,color:catColor(item.category),background:`${catColor(item.category)}22`,padding:'2px 7px',borderRadius:3}}>{item.category}</span></td>
-                      <td><span className="mono" style={{fontSize:13,fontWeight:700,color:'var(--text-primary)'}}>{item.qty}</span></td>
-                      {!selectedWh&&<td style={{fontSize:11}}>{getWhName(item.warehouseId)}</td>}
-                      <td style={{fontSize:11,color:'var(--text-muted)',fontFamily:'var(--font-mono)'}}>{item.addedBy}</td>
-                      <td style={{fontSize:10,color:'var(--text-muted)',fontFamily:'var(--font-mono)'}}>{item.date}</td>
-                      <td style={{fontSize:11,color:'var(--text-secondary)',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.note||'—'}</td>
-                      <td><button className="btn btn-danger btn-sm" onClick={()=>deleteItem(item.id)}>Retirer</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+          <div style={{ padding:'8px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:4, flexWrap:'wrap' }}>
+            {['all', ...ITEM_CATEGORIES].map(c => (
+              <button key={c} className={`btn btn-secondary btn-sm ${filter === c ? 'btn-primary' : ''}`} onClick={() => setFilter(c)} style={{ fontSize:10 }}>{c === 'all' ? 'Tout' : c}</button>
+            ))}
+          </div>
+          <div style={{ maxHeight:320, overflowY:'auto' }}>
+            {visibleItems.length === 0
+              ? <div style={{ padding:20, textAlign:'center', color:'var(--text-muted)', fontSize:12 }}>Aucun objet</div>
+              : <table className="data-table">
+                  <thead><tr><th>OBJET</th><th>QTÉ</th><th>ENTREPÔT</th><th>AJOUTÉ PAR</th><th></th></tr></thead>
+                  <tbody>
+                    {visibleItems.map(i => (
+                      <tr key={i.id}>
+                        <td><div style={{ display:'flex', alignItems:'center', gap:6 }}><span style={{ fontSize:14 }}>{catIcon(i.category)}</span><div><div style={{ fontSize:12, color:'var(--text-primary)', fontWeight:600 }}>{i.name}</div><div style={{ fontSize:10, color:catColor(i.category), fontFamily:'var(--font-mono)' }}>{i.category}</div></div></div></td>
+                        <td><span style={{ fontFamily:'var(--font-mono)', fontWeight:700, fontSize:13 }}>{i.qty}</span></td>
+                        <td style={{ fontSize:11, color:'var(--text-muted)' }}>{getWhName(i.warehouseId)}</td>
+                        <td style={{ fontSize:10, fontFamily:'var(--font-mono)', color:'var(--text-muted)' }}>{i.addedBy}</td>
+                        <td><button className="btn btn-danger btn-sm" onClick={() => deleteItem(i.id)}>🗑</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+            }
           </div>
         </div>
       </div>
 
-      {/* Modal nouvel entrepôt */}
       {showWhModal && (
-        <Modal title="🏭 Nouvel Entrepôt" onClose={()=>setShowWhModal(false)}
-          footer={<><button className="btn btn-secondary" onClick={()=>setShowWhModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addWarehouse}>Créer</button></>}>
-          <div className="form-group"><label className="label">NOM DE L'ENTREPÔT</label><input className="input" value={whForm.name} onChange={e=>setWhForm({...whForm,name:e.target.value})} placeholder="Ex: Entrepôt Sud" autoFocus /></div>
-          <div className="form-group"><label className="label">ZONE / ADRESSE</label><input className="input" value={whForm.zone} onChange={e=>setWhForm({...whForm,zone:e.target.value})} placeholder="Ex: La Mesa" /></div>
-          <div className="form-group"><label className="label">CAPACITÉ (unités)</label><input type="number" className="input" value={whForm.capacity} onChange={e=>setWhForm({...whForm,capacity:e.target.value})} placeholder="50" /></div>
+        <Modal title="Nouvel Entrepôt" onClose={() => setShowWhModal(false)}
+          footer={<><button className="btn btn-secondary" onClick={() => setShowWhModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addWarehouse}>Créer</button></>}>
+          <div className="form-group"><label className="label">NOM DE L'ENTREPÔT</label><input className="input" value={whForm.name} onChange={e => setWhForm({ ...whForm, name:e.target.value })} placeholder="Ex: Entrepôt Sud" autoFocus /></div>
+          <div className="form-group"><label className="label">ZONE / ADRESSE</label><input className="input" value={whForm.zone} onChange={e => setWhForm({ ...whForm, zone:e.target.value })} placeholder="Ex: La Mesa" /></div>
+          <div className="form-group"><label className="label">CAPACITÉ (unités)</label><input type="number" className="input" value={whForm.capacity} onChange={e => setWhForm({ ...whForm, capacity:e.target.value })} placeholder="50" /></div>
         </Modal>
       )}
 
-      {/* Modal ajouter objet */}
       {showItemModal && (
-        <Modal title="📦 Ajouter un Objet" onClose={()=>setShowItemModal(false)}
-          footer={<><button className="btn btn-secondary" onClick={()=>setShowItemModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addItem}>Enregistrer</button></>}>
+        <Modal title="📦 Ajouter un Objet" onClose={() => setShowItemModal(false)}
+          footer={<><button className="btn btn-secondary" onClick={() => setShowItemModal(false)}>Annuler</button><button className="btn btn-primary" onClick={addItem}>Enregistrer</button></>}>
           <div className="form-group"><label className="label">ENTREPÔT</label>
-            <select className="select" value={itemForm.warehouseId} onChange={e=>setItemForm({...itemForm,warehouseId:e.target.value})}>
+            <select className="select" value={itemForm.warehouseId} onChange={e => setItemForm({ ...itemForm, warehouseId:e.target.value })}>
               <option value="">Sélectionner un entrepôt...</option>
-              {data.warehouses.map(w=><option key={w.id} value={w.id}>{w.name} ({w.zone})</option>)}
+              {warehouses.map(w => <option key={w.id} value={w.id}>{w.name} ({w.zone})</option>)}
             </select>
           </div>
-          <div className="form-group"><label className="label">NOM DE L'OBJET</label><input className="input" value={itemForm.name} onChange={e=>setItemForm({...itemForm,name:e.target.value})} placeholder="Ex: Pistolet 50" autoFocus /></div>
+          <div className="form-group"><label className="label">NOM DE L'OBJET</label><input className="input" value={itemForm.name} onChange={e => setItemForm({ ...itemForm, name:e.target.value })} placeholder="Ex: Pistolet 50" autoFocus /></div>
           <div className="form-group"><label className="label">CATÉGORIE</label>
-            <select className="select" value={itemForm.category} onChange={e=>setItemForm({...itemForm,category:e.target.value})}>
-              {ITEM_CATEGORIES.map(c=><option key={c}>{c}</option>)}
+            <select className="select" value={itemForm.category} onChange={e => setItemForm({ ...itemForm, category:e.target.value })}>
+              {ITEM_CATEGORIES.map(c => <option key={c}>{c}</option>)}
             </select>
           </div>
-          <div className="form-group"><label className="label">QUANTITÉ</label><input type="number" className="input" min="1" value={itemForm.qty} onChange={e=>setItemForm({...itemForm,qty:e.target.value})} /></div>
-          <div className="form-group"><label className="label">NOTE (optionnel)</label><input className="input" value={itemForm.note} onChange={e=>setItemForm({...itemForm,note:e.target.value})} placeholder="Ex: Confisqué lors d'une opération" /></div>
+          <div className="form-group"><label className="label">QUANTITÉ</label><input type="number" className="input" min="1" value={itemForm.qty} onChange={e => setItemForm({ ...itemForm, qty:e.target.value })} /></div>
+          <div className="form-group"><label className="label">NOTE (optionnel)</label><input className="input" value={itemForm.note} onChange={e => setItemForm({ ...itemForm, note:e.target.value })} placeholder="Ex: Confisqué lors d'une opération" /></div>
         </Modal>
       )}
     </div>
@@ -1495,49 +1365,61 @@ function LoginScreen({ onLogin }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const login = () => {
-    setLoading(true); setError('');
-    setTimeout(()=>{
-      const accounts = load(SK.users, DEFAULT_ACCOUNTS);
-      const account = accounts.find(a => a.username===username && a.password===password);
-      if(account) {
-        const members = load(SK.members, DEFAULT_MEMBERS);
-        const member = members.find(m => m.id===account.memberId);
-        if(member) {
+  const login = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      // Récupérer les comptes depuis Firebase
+      const { collection, getDocs } = window.fsLib;
+      const [accSnap, memSnap] = await Promise.all([
+        getDocs(collection(window.db, 'accounts')),
+        getDocs(collection(window.db, 'members')),
+      ]);
+      const accounts = accSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const members = memSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const account = accounts.find(a => a.username === username && a.password === password);
+      if (account) {
+        const member = members.find(m => m.id === account.memberId);
+        if (member) {
           addSession(account.id);
           pushLog('connexion', `${member.pseudo} connecté`, 'info');
           onLogin({ ...member, accountId: account.id });
         } else {
-          setError('Membre introuvable. Contactez l\'Héritier.'); setLoading(false);
+          setError("Membre introuvable. Contactez l'Héritier.");
         }
       } else {
-        setError('Identifiants incorrects. Accès refusé.'); setLoading(false);
+        setError('Identifiants incorrects. Accès refusé.');
       }
-    }, 600);
+    } catch(e) {
+      setError('Erreur de connexion. Vérifiez votre réseau.');
+      console.error(e);
+    }
+    setLoading(false);
   };
 
   return (
     <div className="login-screen">
       <div className="login-bg"></div>
       <div className="login-lines"></div>
-      <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:'linear-gradient(to right,transparent,var(--accent-red),transparent)'}}></div>
+      <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:'linear-gradient(to right,transparent,var(--accent-red),transparent)' }}></div>
       <div className="login-card">
         <div className="login-logo">
           <div className="login-logo-icon">V</div>
           <div className="login-title">VMF</div>
-          <div className="login-sub">RÉSEAU PRIVÉ SÉCURISÉ // v3.0.0</div>
+          <div className="login-sub">RÉSEAU PRIVÉ SÉCURISÉ // v3.1.0</div>
         </div>
         <div className="login-warning"><span>⚠</span><span>ACCÈS RÉSERVÉ — Toute tentative non autorisée sera enregistrée.</span></div>
         <div className="login-form">
-          <div><label className="label">IDENTIFIANT</label><input className="input" placeholder="Identifiant de connexion" value={username} onChange={e=>setUsername(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} autoComplete="off" /></div>
-          <div><label className="label">MOT DE PASSE</label><input className="input" type="password" placeholder="••••••••" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} autoComplete="off" /></div>
+          <div><label className="label">IDENTIFIANT</label><input className="input" placeholder="Identifiant de connexion" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} autoComplete="off" /></div>
+          <div><label className="label">MOT DE PASSE</label><input className="input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} autoComplete="off" /></div>
           <div className="login-err">{error}</div>
-          <button className="login-btn" onClick={login} disabled={loading}>{loading?'█ AUTHENTIFICATION...':'→ ACCÉDER AU RÉSEAU'}</button>
+          <button className="login-btn" onClick={login} disabled={loading}>{loading ? '█ AUTHENTIFICATION...' : '→ ACCÉDER AU RÉSEAU'}</button>
         </div>
-        <div style={{textAlign:'center',marginTop:20}}>
-          <div className="secure-badge" style={{justifyContent:'center'}}>
+        <div style={{ textAlign:'center', marginTop:20 }}>
+          <div className="secure-badge" style={{ justifyContent:'center' }}>
             <span className="secure-dot"></span>
-            <span style={{fontSize:9,fontFamily:'var(--font-mono)',color:'var(--text-muted)',letterSpacing:'0.15em'}}>COMPTES GÉRÉS PAR L'HÉRITIER UNIQUEMENT</span>
+            <span style={{ fontSize:9, fontFamily:'var(--font-mono)', color:'var(--text-muted)', letterSpacing:'0.15em' }}>COMPTES GÉRÉS PAR L'HÉRITIER UNIQUEMENT</span>
           </div>
         </div>
       </div>
@@ -1573,23 +1455,33 @@ const PAGE_NAMES = { dashboard:'Dashboard', members:'Membres', weapons:'Armes', 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [page, setPage] = useState('dashboard');
-  const [notifOpen, setNotifOpen] = useState(false);
+  const [fbPerms, setFbPerms] = useState(null);
+
+  // Écoute les permissions en temps réel pour tout le monde
+  useEffect(() => {
+    if (!currentUser) return;
+    return fbListen('permissions', data => {
+      const doc = data.find(d => d.id === 'config');
+      if (doc) { const { id, createdAt, ...p } = doc; setFbPerms(p); }
+      else setFbPerms(null);
+    });
+  }, [currentUser]);
 
   const perms = React.useMemo(() => {
-    if(!currentUser) return {};
-    const stored = load(SK.permissions, DEFAULT_PERMISSIONS);
-    return stored[currentUser.grade] || DEFAULT_PERMISSIONS[currentUser.grade] || {};
-  }, [currentUser, page]);
+    if (!currentUser) return {};
+    const source = fbPerms || DEFAULT_PERMISSIONS;
+    return source[currentUser.grade] || DEFAULT_PERMISSIONS[currentUser.grade] || {};
+  }, [currentUser, fbPerms]);
 
   const logout = () => {
-    if(currentUser) {
+    if (currentUser) {
       removeSession(currentUser.accountId);
       pushLog('connexion', `${currentUser.pseudo} déconnecté`, 'info');
     }
     setCurrentUser(null);
   };
 
-  if(!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
+  if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
 
   const renderPage = () => {
     switch(page) {
@@ -1610,7 +1502,7 @@ function App() {
   };
 
   return (
-    <div className="app-layout" onClick={()=>notifOpen&&setNotifOpen(false)}>
+    <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-logo">
           <div className="logo-mark">
@@ -1619,23 +1511,23 @@ function App() {
           </div>
         </div>
         <div className="sidebar-user">
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <div className="user-avatar" style={{background:currentUser.avatarColor}}>
-              <span style={{fontSize:12,fontWeight:700,fontFamily:'var(--font-mono)',color:'#fff'}}>{currentUser.avatar}</span>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div className="user-avatar" style={{ background:currentUser.avatarColor }}>
+              <span style={{ fontSize:12, fontWeight:700, fontFamily:'var(--font-mono)', color:'#fff' }}>{currentUser.avatar}</span>
             </div>
             <div className="user-info">
               <div className="user-name">{currentUser.pseudo}</div>
-              <div className={`user-grade ${gradeClass(currentUser.grade)}`} style={{fontSize:10,fontFamily:'var(--font-mono)'}}>{currentUser.grade}</div>
+              <div className={`user-grade ${gradeClass(currentUser.grade)}`} style={{ fontSize:10, fontFamily:'var(--font-mono)' }}>{currentUser.grade}</div>
             </div>
             <div className="status-dot"></div>
           </div>
         </div>
         <nav className="sidebar-nav">
-          {NAV.map(section=>(
+          {NAV.map(section => (
             <div className="nav-section" key={section.section}>
               <div className="nav-label">{section.section}</div>
-              {section.items.map(item=>(
-                <div key={item.id} className={`nav-item ${page===item.id?'active':''}`} onClick={()=>setPage(item.id)}>
+              {section.items.map(item => (
+                <div key={item.id} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => setPage(item.id)}>
                   <span className="icon">{item.icon}</span>
                   <span>{item.label}</span>
                 </div>
@@ -1645,9 +1537,9 @@ function App() {
         </nav>
         <div className="sidebar-footer">
           <div className="secure-badge"><span className="secure-dot"></span><span>RÉSEAU SÉCURISÉ</span></div>
-          <div style={{marginTop:8,fontSize:9,fontFamily:'var(--font-mono)',color:'var(--text-muted)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <span>v3.0.0</span>
-            <button style={{background:'none',border:'none',color:'var(--accent-red)',cursor:'pointer',fontSize:9,fontFamily:'var(--font-mono)'}} onClick={logout}>Déconnexion</button>
+          <div style={{ marginTop:8, fontSize:9, fontFamily:'var(--font-mono)', color:'var(--text-muted)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span>v3.1.0</span>
+            <button style={{ background:'none', border:'none', color:'var(--accent-red)', cursor:'pointer', fontSize:9, fontFamily:'var(--font-mono)' }} onClick={logout}>Déconnexion</button>
           </div>
         </div>
       </aside>
@@ -1655,15 +1547,15 @@ function App() {
       <div className="main-area">
         <div className="topbar">
           <div>
-            <div className="topbar-title">{PAGE_NAMES[page]||page}</div>
-            <div className="topbar-breadcrumb mono">VMF // {PAGE_NAMES[page]||page}</div>
+            <div className="topbar-title">{PAGE_NAMES[page] || page}</div>
+            <div className="topbar-breadcrumb mono">VMF // {PAGE_NAMES[page] || page}</div>
           </div>
           <div className="topbar-actions">
-            <div className="user-avatar" style={{width:32,height:32,background:currentUser.avatarColor,fontSize:12,fontWeight:700,fontFamily:'var(--font-mono)',color:'#fff',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <div className="user-avatar" style={{ width:32, height:32, background:currentUser.avatarColor, fontSize:12, fontWeight:700, fontFamily:'var(--font-mono)', color:'#fff', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center' }}>
               {currentUser.avatar}
             </div>
-            <span style={{fontSize:11,fontFamily:'var(--font-mono)',color:'var(--text-muted)'}}>{currentUser.pseudo}</span>
-            <span className={`badge badge-${currentUser.grade==='Heritier'?'red':currentUser.grade==='Regent'?'gold':currentUser.grade==='Senechaux'?'green':currentUser.grade==='Syndic'?'blue':'gray'}`}>{currentUser.grade}</span>
+            <span style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--text-muted)' }}>{currentUser.pseudo}</span>
+            <span className={`badge badge-${currentUser.grade === 'Heritier' ? 'red' : currentUser.grade === 'Regent' ? 'gold' : currentUser.grade === 'Senechaux' ? 'green' : currentUser.grade === 'Syndic' ? 'blue' : 'gray'}`}>{currentUser.grade}</span>
           </div>
         </div>
         <div className="content-scroll">{renderPage()}</div>
