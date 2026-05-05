@@ -436,11 +436,12 @@ function Members({ currentUser, perms }) {
   };
 
   const addMember = async () => {
-    if(!form.pseudo) return;
-    const nm = { pseudo:form.pseudo, grade:form.grade, phone:form.phone, joined:new Date().toLocaleDateString('fr'), avatar:form.pseudo[0].toUpperCase(), avatarColor:gradeColor(form.grade) };
-    await fbAdd('members', nm);
-    pushLog('modification', `Nouveau membre ajouté: ${form.pseudo} (${form.grade}) par ${currentUser.pseudo}`, 'info');
-    setShowModal(false); setForm({ pseudo:'', grade:'Collaborateur', phone:'' });
+    const name = prompt("Pseudo ?");
+    if(!name) return;
+    await fb.add("members", {
+      pseudo: name,
+      grade: "Collaborateur"
+    });
   };
 
   const saveMember = async () => {
@@ -452,9 +453,7 @@ function Members({ currentUser, perms }) {
   };
 
   const deleteMember = async (id) => {
-    const m = members.find(x=>x.id===id);
-    await fbDelete('members', id);
-    pushLog('suppression', `Membre ${m?.pseudo} supprimé par ${currentUser.pseudo}`, 'danger');
+    await fb.delete("members", id);
   };
 
   const isHeritier = currentUser.grade === 'Heritier';
@@ -833,13 +832,12 @@ function Chat({ currentUser }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  useEffect(() => {
-    const t = setInterval(() => {
-      setMessages(load(SK.messages, DEFAULT_MESSAGES));
-      setOnlineIds(getOnlineUserIds());
-    }, 2000);
-    return () => clearInterval(t);
-  }, []);
+  // CHAT LIVE
+  useEffect(()=>{
+    return fb.listen("messages", (data)=>{
+      setMessages(data.sort((a,b)=> (a.createdAt?.seconds||0)-(b.createdAt?.seconds||0)));
+    });
+  },[]);
 
   const send = () => {
     if (!input.trim()) return;
