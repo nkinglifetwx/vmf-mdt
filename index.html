@@ -5,11 +5,14 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, doc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-  const firebaseConfig = {
-    apiKey: "TA_CLE",
-    authDomain: "xxx.firebaseapp.com",
-    projectId: "xxx",
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyDLVsEFu1aubVt6yOAwjFiAceBOQ_t3QXw",
+  authDomain: "vmf-mdt.firebaseapp.com",
+  projectId: "vmf-mdt",
+  storageBucket: "vmf-mdt.firebasestorage.app",
+  messagingSenderId: "789136065930",
+  appId: "1:789136065930:web:4e6230f27952c588d13473"
+};
 
   const app = initializeApp(firebaseConfig);
   window.db = getFirestore(app);
