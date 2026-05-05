@@ -1,6 +1,20 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+  <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, doc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "TA_CLE",
+    authDomain: "xxx.firebaseapp.com",
+    projectId: "xxx",
+  };
+
+  const app = initializeApp(firebaseConfig);
+  window.db = getFirestore(app);
+  window.fsLib = { collection, doc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy };
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VMF — Réseau Privé Sécurisé</title>
@@ -194,8 +208,39 @@ const SK = {
   permissions: 'nexus_permissions_v1',
 };
 
-const load = (key, def) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } };
-const save = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} };
+// FIREBASE
+async function fbGetAll(col) {
+  const { collection, getDocs } = window.fsLib;
+  const snap = await getDocs(collection(window.db, col));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function fbSet(col, id, data) {
+  const { doc, setDoc } = window.fsLib;
+  await setDoc(doc(window.db, col, id), data, { merge: true });
+}
+
+async function fbAdd(col, data) {
+  const { collection, addDoc } = window.fsLib;
+  const ref = await addDoc(collection(window.db, col), data);
+  return ref.id;
+}
+
+async function fbDelete(col, id) {
+  const { doc, deleteDoc } = window.fsLib;
+  await deleteDoc(doc(window.db, col, id));
+}
+
+function fbListen(col, cb) {
+  const { collection, onSnapshot } = window.fsLib;
+  return onSnapshot(collection(window.db, col), snap => {
+    cb(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  });
+}
+
+// garde seulement pour petits trucs locaux
+const load = (k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d}};
+const save = (k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
 
 // ─── DEFAULT DATA ────────────────────────────────────────────────────────────
 const DEFAULT_ACCOUNTS = [
@@ -354,7 +399,7 @@ function Dashboard({ currentUser }) {
 
 // ─── MEMBERS ─────────────────────────────────────────────────────────────────
 function Members({ currentUser, perms }) {
-  const [members, setMembers] = useState(() => load(SK.members, DEFAULT_MEMBERS));
+  const [members, setMembers] = useState([])
   const [onlineIds, setOnlineIds] = useState(getOnlineUserIds());
   const accounts = load(SK.users, DEFAULT_ACCOUNTS);
   const [showModal, setShowModal] = useState(false);
