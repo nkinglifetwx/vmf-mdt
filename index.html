@@ -336,7 +336,7 @@ function FlappyBird(){
     bird:{y:150,vy:0},pipes:[],score:0,best:0,frame:0,status:'idle'
   });
   const rafRef=useRef(null);
-  const W=320,H=480,GAP=130,PIPE_W=44,SPEED=2.2,GRAV=0.15,JUMP=-2;
+  const W=320,H=480,GAP=130,PIPE_W=44,SPEED=2.2,GRAV=0.15,JUMP=-4.5;
 
   const resetPipes=()=>[
     {x:W+60,top:80+Math.random()*(H-GAP-120)},
