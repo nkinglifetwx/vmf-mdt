@@ -275,25 +275,33 @@ function AvatarPicker({emoji,color,onChangeEmoji,onChangeColor}){
 }
 
 // ─── ITEM IMAGE PICKER ───────────────────────────────────────────────────────
-function ItemIconPicker({emoji,color,onChangeEmoji,onChangeColor}){
+function ItemIconPicker({imageUrl,onChangeImage}){
+  const[urlInput,setUrlInput]=useState(imageUrl||'');
+  const[dragging,setDragging]=useState(false);
+  const handleDrop=e=>{
+    e.preventDefault();setDragging(false);
+    const url=e.dataTransfer.getData('text/plain')||e.dataTransfer.getData('text/uri-list');
+    if(url){setUrlInput(url);onChangeImage(url);}
+  };
+  const handleUrl=v=>{setUrlInput(v);onChangeImage(v);};
   return(
     <div>
       <div className="fg">
-        <label className="lbl">ICÔNE</label>
-        <div className="emoji-grid">
-          {ITEM_EMOJIS.map(e=>(
-            <div key={e} className={`emoji-opt${emoji===e?' sel':''}`} onClick={()=>onChangeEmoji(e)}>{e}</div>
-          ))}
-        </div>
+        <label className="lbl">LIEN IMAGE</label>
+        <input className="inp" value={urlInput} onChange={e=>handleUrl(e.target.value)} placeholder="https://...image.png"/>
       </div>
-      <div className="fg">
-        <label className="lbl">COULEUR DE FOND</label>
-        <div className="color-grid">
-          {AVATAR_COLORS.map(c=>(
-            <div key={c} className={`color-opt${color===c?' sel':''}`} style={{background:c}} onClick={()=>onChangeColor(c)}/>
-          ))}
-        </div>
+      <div
+        onDragOver={e=>{e.preventDefault();setDragging(true);}}
+        onDragLeave={()=>setDragging(false)}
+        onDrop={handleDrop}
+        style={{border:`2px dashed ${dragging?'var(--acc)':'var(--bdrb)'}`,borderRadius:'var(--r)',padding:12,textAlign:'center',cursor:'default',transition:'var(--tr)',background:dragging?'var(--accf)':'transparent',marginBottom:8}}
+      >
+        {urlInput
+          ?<img src={urlInput} alt="preview" style={{width:52,height:52,objectFit:'cover',borderRadius:8,border:'1px solid var(--bdr)'}} onError={e=>{e.target.style.display='none';}}/>
+          :<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>Glisser une image ici</div>
+        }
       </div>
+      {urlInput&&<button className="btn btn-s btn-sm" style={{fontSize:10}} onClick={()=>handleUrl('')}>✕ Retirer</button>}
     </div>
   );
 }
@@ -669,9 +677,10 @@ function Four({currentUser,perms}){
   const[transLog,setTransLog]=useState([]);
   const[catFilter,setCatFilter]=useState('all');
   // forms
-  const emptyItem={name:'',buyPrice:'',sellPrice:'',category:'Drogue',unit:'unité',emoji:'📦',emojiColor:'#c9a84c',linkedWarehouseId:'',linkedWarehouseAuto:false};
+  const emptyItem={name:'',buyPrice:'',sellPrice:'',category:'Drogue',unit:'unité',imageUrl:'',linkedWarehouseId:'',linkedWarehouseAuto:false};
   const[itemForm,setItemForm]=useState(emptyItem);
   const[buyQty,setBuyQty]=useState(1);
+  const[buyWarehouse,setBuyWarehouse]=useState('');
   const[sellQty,setSellQty]=useState(1);
   const[sellPrice2,setSellPrice2]=useState('');
   const[manualAmt,setManualAmt]=useState('');
@@ -700,7 +709,7 @@ function Four({currentUser,perms}){
 
   const addItem=async()=>{
     if(!itemForm.name||!itemForm.buyPrice||!itemForm.sellPrice)return;
-    await fbAdd('four_items',{name:itemForm.name,buyPrice:parseInt(itemForm.buyPrice),sellPrice:parseInt(itemForm.sellPrice),category:itemForm.category,unit:itemForm.unit||'unité',emoji:itemForm.emoji||'📦',emojiColor:itemForm.emojiColor||'#c9a84c',linkedWarehouseId:itemForm.linkedWarehouseId||'',linkedWarehouseAuto:itemForm.linkedWarehouseAuto||false,stock:0,totalBought:0,totalSold:0,revenue:0});
+    await fbAdd('four_items',{name:itemForm.name,buyPrice:parseInt(itemForm.buyPrice),sellPrice:parseInt(itemForm.sellPrice),category:itemForm.category,unit:itemForm.unit||'unité',imageUrl:itemForm.imageUrl||'',linkedWarehouseId:itemForm.linkedWarehouseId||'',linkedWarehouseAuto:itemForm.linkedWarehouseAuto||false,stock:0,totalBought:0,totalSold:0,revenue:0});
     pushLog('stock',`Produit four ajouté: ${itemForm.name}`,'info','four');
     setShowAddItem(false);setItemForm(emptyItem);
   };
@@ -715,12 +724,13 @@ function Four({currentUser,perms}){
     await fbSet('four_items',showBuy.id,{stock:(showBuy.stock||0)+qty,totalBought:(showBuy.totalBought||0)+qty});
     await fbSet('treasury','main',{amount:tAmount-cost});
     await fbAdd('four_transactions',{type:'achat',item:showBuy.name,qty,price:showBuy.buyPrice,total:cost,by:currentUser.pseudo,date:fmtDate()});
-    // Sync stockage si lié
-    if(showBuy.linkedWarehouseAuto&&showBuy.linkedWarehouseId){
-      await fbAdd('storage_items',{name:showBuy.name,category:showBuy.category||'Autre',qty,warehouseId:showBuy.linkedWarehouseId,addedBy:`[Four] ${currentUser.pseudo}`,date:fmtDate(),emoji:showBuy.emoji,emojiColor:showBuy.emojiColor,note:`Achat automatique depuis le Four`});
+    // Sync stockage : entrepôt choisi à l'achat ou entrepôt lié auto
+    const targetWh=buyWarehouse||(showBuy.linkedWarehouseAuto?showBuy.linkedWarehouseId:'');
+    if(targetWh){
+      await fbAdd('storage_items',{name:showBuy.name,category:showBuy.category||'Autre',qty,warehouseId:targetWh,addedBy:`[Four] ${currentUser.pseudo}`,date:fmtDate(),imageUrl:showBuy.imageUrl||'',note:`Achat depuis le Four`});
     }
-    pushLog('stock',`Achat: ${qty}x ${showBuy.name} ${fmtMoney(cost)} par ${currentUser.pseudo}`,'warn','four');
-    setShowBuy(null);setBuyQty(1);
+    pushLog('stock',`Achat: ${qty}x ${showBuy.name} ${fmtMoney(cost)} par ${currentUser.pseudo}${targetWh?' → '+warehouses.find(w=>w.id===targetWh)?.name:''}`, 'warn','four');
+    setShowBuy(null);setBuyQty(1);setBuyWarehouse('');
   };
 
   const sellItem=async()=>{
@@ -739,21 +749,21 @@ function Four({currentUser,perms}){
 
   const saveEditItem=async()=>{
     if(!showEditItem)return;const{id,...d}=showEditItem;
-    await fbSet('four_items',id,{name:d.name,buyPrice:parseInt(d.buyPrice),sellPrice:parseInt(d.sellPrice),category:d.category,unit:d.unit,emoji:d.emoji,emojiColor:d.emojiColor,linkedWarehouseId:d.linkedWarehouseId||'',linkedWarehouseAuto:d.linkedWarehouseAuto||false});
+    await fbSet('four_items',id,{name:d.name,buyPrice:parseInt(d.buyPrice),sellPrice:parseInt(d.sellPrice),category:d.category,unit:d.unit,imageUrl:d.imageUrl||'',linkedWarehouseId:d.linkedWarehouseId||'',linkedWarehouseAuto:d.linkedWarehouseAuto||false});
     setShowEditItem(null);
   };
 
   // FIX #1 : retrait manuel avec raison obligatoire
   const doManualTreasury=async()=>{
     const v=parseInt(manualAmt);if(isNaN(v)||v<=0)return;
-    if(showManualT==='remove'&&!manualReason.trim()){alert('La raison est obligatoire pour un retrait.');return;}
+    if((showManualT==='add'||showManualT==='remove')&&!manualReason.trim()){alert('La raison est obligatoire.');return;}
     await ensureT();
     let newAmt=tAmount;
     if(showManualT==='add')newAmt=tAmount+v;
     else if(showManualT==='remove')newAmt=Math.max(0,tAmount-v);
     else if(showManualT==='set')newAmt=v;
     await fbSet('treasury','main',{amount:newAmt});
-    const msg=showManualT==='add'?`+${fmtMoney(v)} ajouté à la trésorerie par ${currentUser.pseudo}`:showManualT==='remove'?`−${fmtMoney(v)} retiré (${manualReason}) par ${currentUser.pseudo}`:`Trésorerie définie à ${fmtMoney(v)} par ${currentUser.pseudo}`;
+    const msg=showManualT==='add'?`+${fmtMoney(v)} ajouté (${manualReason}) par ${currentUser.pseudo}`:showManualT==='remove'?`−${fmtMoney(v)} retiré (${manualReason}) par ${currentUser.pseudo}`:`Trésorerie définie à ${fmtMoney(v)} par ${currentUser.pseudo}`;
     pushLog('modification',msg,'warn','tresorerie');
     setShowManualT(null);setManualAmt('');setManualReason('');
   };
@@ -812,7 +822,10 @@ function Four({currentUser,perms}){
               <div className="four-item" key={item.id} style={{borderTopColor:catColors[item.category]||'var(--acc)'}}>
                 <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
                   <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <div style={{width:40,height:40,borderRadius:8,background:item.emojiColor||'#c9a84c',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0}}>{item.emoji||'📦'}</div>
+                    {item.imageUrl
+                      ?<img src={item.imageUrl} alt={item.name} style={{width:40,height:40,borderRadius:8,objectFit:'cover',border:'1px solid var(--bdr)',flexShrink:0}}/>
+                      :<div style={{width:40,height:40,borderRadius:8,background:'var(--bg3)',border:'1px dashed var(--bdrb)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'var(--txtm)',flexShrink:0}}>?</div>
+                    }
                     <div>
                       <div style={{fontSize:12,fontWeight:700,color:'var(--txt)'}}>{item.name}</div>
                       <div style={{fontSize:9,fontFamily:'var(--fc)',color:catColors[item.category]||'var(--txtm)',marginTop:1}}>{item.category} • {item.unit}</div>
@@ -867,15 +880,15 @@ function Four({currentUser,perms}){
         </div>
       )}
 
-      {/* Modal Trésorerie manuelle — FIX #1 raison obligatoire pour retrait */}
+      {/* Modal Trésorerie manuelle — raison obligatoire pour ajout ET retrait */}
       {showManualT&&<Modal title={showManualT==='add'?'Ajouter à la Trésorerie':showManualT==='remove'?'Retirer de la Trésorerie':'Définir la Trésorerie'} onClose={()=>setShowManualT(null)} footer={<><button className="btn btn-s" onClick={()=>setShowManualT(null)}>Annuler</button><button className={`btn ${showManualT==='remove'?'btn-d':'btn-p'}`} onClick={doManualTreasury}>Confirmer</button></>}>
         <div style={{background:'var(--bg3)',borderRadius:'var(--r)',padding:'10px 12px',marginBottom:14,display:'flex',gap:20}}>
           <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>ACTUEL</div><div style={{fontSize:15,fontFamily:'var(--fc)',color:'var(--gold)',fontWeight:700}}>{fmtMoney(tAmount)}</div></div>
           {showManualT!=='set'&&manualAmt&&<div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>APRÈS</div><div style={{fontSize:15,fontFamily:'var(--fc)',color:showManualT==='add'?'var(--green)':'#e87060',fontWeight:700}}>{fmtMoney(showManualT==='add'?tAmount+parseInt(manualAmt||0):Math.max(0,tAmount-parseInt(manualAmt||0)))}</div></div>}
         </div>
         <div className="fg"><label className="lbl">MONTANT ($)</label><input type="number" className="inp" value={manualAmt} onChange={e=>setManualAmt(e.target.value)} placeholder="0" autoFocus/></div>
-        {showManualT==='remove'&&<div className="fg"><label className="lbl">RAISON DU RETRAIT <span style={{color:'#e87060'}}>*</span></label><input className="inp" value={manualReason} onChange={e=>setManualReason(e.target.value)} placeholder="Ex: Achat de matériel, loyer planque..."/></div>}
-        {showManualT==='remove'&&<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>La raison sera enregistrée dans les logs.</div>}
+        {(showManualT==='add'||showManualT==='remove')&&<div className="fg"><label className="lbl">RAISON <span style={{color:'#e87060'}}>*</span></label><input className="inp" value={manualReason} onChange={e=>setManualReason(e.target.value)} placeholder={showManualT==='add'?'Ex: Vente de rue, deal, taxe...':'Ex: Achat de matériel, loyer planque...'}/></div>}
+        {(showManualT==='add'||showManualT==='remove')&&<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>La raison sera enregistrée dans les logs.</div>}
       </Modal>}
 
       {/* Modal add item */}
@@ -906,9 +919,12 @@ function Four({currentUser,perms}){
           </div>
           <div style={{width:200}}>
             <div style={{display:'flex',justifyContent:'center',marginBottom:12}}>
-              <div style={{width:56,height:56,borderRadius:12,background:itemForm.emojiColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:28}}>{itemForm.emoji}</div>
+              {itemForm.imageUrl
+                ?<img src={itemForm.imageUrl} alt="icon" style={{width:56,height:56,objectFit:'cover',borderRadius:12,border:'1px solid var(--bdr)'}}/>
+                :<div style={{width:56,height:56,borderRadius:12,background:'var(--bg3)',border:'1px dashed var(--bdrb)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',textAlign:'center',padding:4}}>Aucune image</div>
+              }
             </div>
-            <ItemIconPicker emoji={itemForm.emoji} color={itemForm.emojiColor} onChangeEmoji={e=>setItemForm({...itemForm,emoji:e})} onChangeColor={c=>setItemForm({...itemForm,emojiColor:c})}/>
+            <ItemIconPicker imageUrl={itemForm.imageUrl||''} onChangeImage={u=>setItemForm({...itemForm,imageUrl:u})}/>
           </div>
         </div>
         {itemForm.buyPrice&&itemForm.sellPrice&&<div style={{background:'var(--greenf)',border:'1px solid rgba(0,208,132,.3)',borderRadius:'var(--r)',padding:'8px 12px',fontSize:11,fontFamily:'var(--fc)',color:'var(--green)',marginTop:4}}>Marge: {fmtMoney(parseInt(itemForm.sellPrice||0)-parseInt(itemForm.buyPrice||0))} (+{Math.round(((parseInt(itemForm.sellPrice||0)-parseInt(itemForm.buyPrice||0))/Math.max(1,parseInt(itemForm.buyPrice||1)))*100)}%)</div>}
@@ -941,15 +957,18 @@ function Four({currentUser,perms}){
           </div>
           <div style={{width:200}}>
             <div style={{display:'flex',justifyContent:'center',marginBottom:12}}>
-              <div style={{width:56,height:56,borderRadius:12,background:showEditItem.emojiColor||'#c9a84c',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28}}>{showEditItem.emoji||'📦'}</div>
+              {showEditItem.imageUrl
+                ?<img src={showEditItem.imageUrl} alt="icon" style={{width:56,height:56,objectFit:'cover',borderRadius:12,border:'1px solid var(--bdr)'}}/>
+                :<div style={{width:56,height:56,borderRadius:12,background:'var(--bg3)',border:'1px dashed var(--bdrb)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',textAlign:'center',padding:4}}>Aucune image</div>
+              }
             </div>
-            <ItemIconPicker emoji={showEditItem.emoji||'📦'} color={showEditItem.emojiColor||'#c9a84c'} onChangeEmoji={e=>setShowEditItem({...showEditItem,emoji:e})} onChangeColor={c=>setShowEditItem({...showEditItem,emojiColor:c})}/>
+            <ItemIconPicker imageUrl={showEditItem.imageUrl||''} onChangeImage={u=>setShowEditItem({...showEditItem,imageUrl:u})}/>
           </div>
         </div>
       </Modal>}
 
       {/* Modal achat */}
-      {showBuy&&<Modal title={`🛒 Acheter — ${showBuy.name}`} onClose={()=>setShowBuy(null)} footer={<><button className="btn btn-s" onClick={()=>setShowBuy(null)}>Annuler</button><button className="btn btn-d" onClick={buyItem}>Confirmer l'achat</button></>}>
+      {showBuy&&<Modal title={`🛒 Acheter — ${showBuy.name}`} onClose={()=>{setShowBuy(null);setBuyWarehouse('');}} footer={<><button className="btn btn-s" onClick={()=>{setShowBuy(null);setBuyWarehouse('');}}>Annuler</button><button className="btn btn-d" onClick={buyItem}>Confirmer l'achat</button></>}>
         <div style={{background:'var(--bg3)',borderRadius:'var(--r)',padding:12,marginBottom:14}}>
           <div style={{display:'flex',gap:20}}>
             <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>PRIX UNITAIRE</div><div style={{fontSize:14,fontFamily:'var(--fc)',color:'#e87060',fontWeight:700}}>{fmtMoney(showBuy.buyPrice)}</div></div>
@@ -957,8 +976,19 @@ function Four({currentUser,perms}){
             <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>STOCK</div><div style={{fontSize:14,fontFamily:'var(--fc)',color:'var(--txt)',fontWeight:700}}>{showBuy.stock||0}</div></div>
           </div>
         </div>
-        {showBuy.linkedWarehouseAuto&&showBuy.linkedWarehouseId&&<div style={{background:'var(--greenf)',border:'1px solid rgba(0,208,132,.3)',borderRadius:'var(--r)',padding:'7px 10px',fontSize:10,fontFamily:'var(--fc)',color:'var(--green)',marginBottom:12}}>🔗 Ajout automatique dans {warehouses.find(w=>w.id===showBuy.linkedWarehouseId)?.name||'?'}</div>}
         <div className="fg"><label className="lbl">QUANTITÉ</label><input type="number" className="inp" min="1" value={buyQty} onChange={e=>setBuyQty(e.target.value)} autoFocus/></div>
+        <div className="fg">
+          <label className="lbl">DÉPOSER DANS UN ENTREPÔT</label>
+          <select className="sel" value={buyWarehouse} onChange={e=>setBuyWarehouse(e.target.value)}>
+            <option value="">— Ne pas déposer en stockage</option>
+            {warehouses.sort((a,b)=>a.name.localeCompare(b.name)).map(w=>(
+              <option key={w.id} value={w.id}>{w.name}{w.zone?` (${w.zone})`:''}</option>
+            ))}
+          </select>
+          {!buyWarehouse&&showBuy.linkedWarehouseId&&showBuy.linkedWarehouseAuto&&(
+            <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--gold)',marginTop:5}}>⚠ Entrepôt auto lié ({warehouses.find(w=>w.id===showBuy.linkedWarehouseId)?.name||'?'}) — sélectionner ci-dessus pour surcharger</div>
+          )}
+        </div>
         {buyQty>0&&<div style={{background:tAmount<showBuy.buyPrice*parseInt(buyQty||1)?'var(--redf)':'var(--greenf)',border:`1px solid ${tAmount<showBuy.buyPrice*parseInt(buyQty||1)?'rgba(192,57,43,.3)':'rgba(0,208,132,.3)'}`,borderRadius:'var(--r)',padding:'9px 12px',fontSize:12,fontFamily:'var(--fc)',display:'flex',justifyContent:'space-between'}}>
           <span>Coût total:</span>
           <span style={{fontWeight:700,color:tAmount<showBuy.buyPrice*parseInt(buyQty||1)?'#e87060':'var(--green)'}}>{fmtMoney(showBuy.buyPrice*parseInt(buyQty||1))}</span>
@@ -1198,7 +1228,7 @@ function Storage({currentUser,perms}){
   const[showWh,setShowWh]=useState(false);
   const[showItem,setShowItem]=useState(false);
   const[whForm,setWhForm]=useState({name:'',zone:'',capacity:50});
-  const[itemForm,setItemForm]=useState({name:'',category:'Matériel',qty:1,warehouseId:'',note:'',emoji:'📦',emojiColor:'#60a5fa'});
+  const[itemForm,setItemForm]=useState({name:'',category:'Matériel',qty:1,warehouseId:'',note:'',imageUrl:''});
   const[filter,setFilter]=useState('all');
   useEffect(()=>{const u1=fbLsn('warehouses',setWarehouses);const u2=fbLsn('storage_items',setItems);return()=>{u1();u2();};},[]);
   if(!perms.storage_view)return<AccessDenied/>;
@@ -1218,7 +1248,7 @@ function Storage({currentUser,perms}){
     if(!itemForm.name||!itemForm.warehouseId)return;
     await fbAdd('storage_items',{...itemForm,qty:Number(itemForm.qty)||1,addedBy:currentUser.pseudo,date:fmtDate()});
     pushLog('stock',`Objet ajouté: ${itemForm.qty}x ${itemForm.name}`,'info');
-    setShowItem(false);setItemForm({name:'',category:'Matériel',qty:1,warehouseId:'',note:'',emoji:'📦',emojiColor:'#60a5fa'});
+    setShowItem(false);setItemForm({name:'',category:'Matériel',qty:1,warehouseId:'',note:'',imageUrl:''});
   };
   const delItem=async id=>{await fbDel('storage_items',id);};
   const whUsage=id=>items.filter(i=>i.warehouseId===id).reduce((s,i)=>s+i.qty,0);
@@ -1265,7 +1295,9 @@ function Storage({currentUser,perms}){
                 {visible.map(i=>(
                   <tr key={i.id}>
                     <td><div style={{display:'flex',alignItems:'center',gap:7}}>
-                      <div style={{width:28,height:28,borderRadius:6,background:i.emojiColor||'#60a5fa',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>{i.emoji||'📦'}</div>
+                    <div style={{width:28,height:28,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0,overflow:'hidden',border:'1px solid var(--bdr)'}}>
+                      {i.imageUrl?<img src={i.imageUrl} alt={i.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontSize:12,color:'var(--txtm)'}}>?</span>}
+                    </div>
                       <div><div style={{fontSize:11,color:'var(--txt)',fontWeight:600}}>{i.name}</div><div style={{fontSize:9,color:'var(--txtm)',fontFamily:'var(--fc)'}}>{i.category}</div></div>
                     </div></td>
                     <td style={{fontFamily:'var(--fc)',fontWeight:700}}>{i.qty}</td>
@@ -1294,9 +1326,12 @@ function Storage({currentUser,perms}){
           </div>
           <div style={{width:200}}>
             <div style={{display:'flex',justifyContent:'center',marginBottom:12}}>
-              <div style={{width:52,height:52,borderRadius:10,background:itemForm.emojiColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:26}}>{itemForm.emoji}</div>
+              {itemForm.imageUrl
+                ?<img src={itemForm.imageUrl} alt="icon" style={{width:52,height:52,objectFit:'cover',borderRadius:10,border:'1px solid var(--bdr)'}}/>
+                :<div style={{width:52,height:52,borderRadius:10,background:'var(--bg3)',border:'1px dashed var(--bdrb)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',textAlign:'center',padding:4}}>Aucune image</div>
+              }
             </div>
-            <ItemIconPicker emoji={itemForm.emoji} color={itemForm.emojiColor} onChangeEmoji={e=>setItemForm({...itemForm,emoji:e})} onChangeColor={c=>setItemForm({...itemForm,emojiColor:c})}/>
+            <ItemIconPicker imageUrl={itemForm.imageUrl||''} onChangeImage={u=>setItemForm({...itemForm,imageUrl:u})}/>
           </div>
         </div>
       </Modal>}
@@ -1506,15 +1541,24 @@ function Profile({currentUser,setCurrentUser}){
   const[discord,setDiscord]=useState(currentUser.discordUsername||'');
   const[avatar,setAvatar]=useState(currentUser.avatar||'👤');
   const[avatarColor,setAvatarColor]=useState(currentUser.avatarColor||gradeColor(currentUser.grade));
+  const[avatarImage,setAvatarImage]=useState(currentUser.avatarImage||'');
+  const[imgUrl,setImgUrl]=useState(currentUser.avatarImage||'');
+  const[dragging,setDragging]=useState(false);
   const[msg,setMsg]=useState('');
   const[err,setErr]=useState('');
   useEffect(()=>{return fbLsn('accounts',setAccounts);},[]);
   const myAccount=accounts.find(a=>a.id===currentUser.accountId);
   const notify=(m,isErr)=>{if(isErr)setErr(m);else setMsg(m);setTimeout(()=>{setMsg('');setErr('');},3000);};
+  const applyImage=url=>{setAvatarImage(url);setImgUrl(url);};
+  const handleDrop=e=>{
+    e.preventDefault();setDragging(false);
+    const url=e.dataTransfer.getData('text/plain')||e.dataTransfer.getData('text/uri-list');
+    if(url)applyImage(url.trim());
+  };
   const saveProfile=async()=>{
     if(!pseudo.trim()){notify('Le pseudo ne peut pas être vide',true);return;}
-    await fbSet('members',currentUser.id,{pseudo,avatar,avatarColor,discordUsername:discord});
-    setCurrentUser({...currentUser,pseudo,avatar,avatarColor,discordUsername:discord});
+    await fbSet('members',currentUser.id,{pseudo,avatar,avatarColor,avatarImage:avatarImage||'',discordUsername:discord});
+    setCurrentUser({...currentUser,pseudo,avatar,avatarColor,avatarImage:avatarImage||'',discordUsername:discord});
     notify('✓ Profil sauvegardé');
   };
   const changePwd=async()=>{
@@ -1527,11 +1571,14 @@ function Profile({currentUser,setCurrentUser}){
     setOldPwd('');setNewPwd('');setNewPwd2('');
     notify('✓ Mot de passe modifié');
   };
+  const profilePicDisplay=avatarImage
+    ?<img src={avatarImage} alt="avatar" style={{width:70,height:70,borderRadius:'50%',objectFit:'cover',border:'2px solid var(--bdrb)'}} onError={()=>setAvatarImage('')}/>
+    :<div className="avatar-big" style={{background:avatarColor,fontSize:30,width:70,height:70}}>{avatar}</div>;
   return(
     <div className="pe">
       <div className="profile-card">
         <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:24}}>
-          <div className="avatar-big" style={{background:avatarColor,fontSize:30,width:70,height:70}}>{avatar}</div>
+          {profilePicDisplay}
           <div>
             <div style={{fontSize:16,fontWeight:800,color:'var(--txt)'}}>{currentUser.pseudo}</div>
             <span className={gradeClass(currentUser.grade)} style={{fontSize:12,fontFamily:'var(--fc)'}}>{currentUser.grade}</span>
@@ -1539,7 +1586,29 @@ function Profile({currentUser,setCurrentUser}){
         </div>
 
         <div style={{borderBottom:'1px solid var(--bdr)',marginBottom:18,paddingBottom:18}}>
-          <div style={{fontSize:11,fontWeight:700,color:'var(--txt)',marginBottom:12,letterSpacing:'.06em'}}>AVATAR</div>
+          <div style={{fontSize:11,fontWeight:700,color:'var(--txt)',marginBottom:12,letterSpacing:'.06em'}}>PHOTO DE PROFIL</div>
+          {/* Drag & drop zone */}
+          <div
+            onDragOver={e=>{e.preventDefault();setDragging(true);}}
+            onDragLeave={()=>setDragging(false)}
+            onDrop={handleDrop}
+            style={{border:`2px dashed ${dragging?'var(--acc)':'var(--bdrb)'}`,borderRadius:'var(--r)',padding:16,textAlign:'center',marginBottom:10,background:dragging?'var(--accf)':'var(--bg3)',transition:'var(--tr)',cursor:'default'}}
+          >
+            {avatarImage
+              ?<img src={avatarImage} alt="preview" style={{width:64,height:64,borderRadius:'50%',objectFit:'cover',border:'2px solid var(--bdrb)'}} onError={()=>applyImage('')}/>
+              :<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>Glisser une image ici</div>
+            }
+          </div>
+          <div className="fg">
+            <label className="lbl">OU COLLER UN LIEN IMAGE</label>
+            <div style={{display:'flex',gap:6}}>
+              <input className="inp" value={imgUrl} onChange={e=>setImgUrl(e.target.value)} placeholder="https://...image.png"/>
+              <button className="btn btn-s btn-sm" onClick={()=>applyImage(imgUrl)}>OK</button>
+            </div>
+          </div>
+          {avatarImage&&<button className="btn btn-d btn-sm" style={{fontSize:10,marginBottom:8}} onClick={()=>applyImage('')}>✕ Retirer la photo</button>}
+          <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',marginBottom:8}}>Si aucune photo, l'avatar emoji ci-dessous sera utilisé.</div>
+          <div style={{fontSize:11,fontWeight:700,color:'var(--txt)',marginBottom:8,letterSpacing:'.06em'}}>AVATAR EMOJI (fallback)</div>
           <AvatarPicker emoji={avatar} color={avatarColor} onChangeEmoji={setAvatar} onChangeColor={setAvatarColor}/>
         </div>
 
@@ -1718,7 +1787,9 @@ function App(){
         {/* FIX #9 : clic sur avatar → profil */}
         <div className="suser" onClick={()=>setPage('profile')} title="Mon profil">
           <div style={{display:'flex',alignItems:'center',gap:7}}>
-            <div style={{width:28,height:28,borderRadius:'50%',background:currentUser.avatarColor||gradeColor(currentUser.grade),display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0}}>{currentUser.avatar}</div>
+            <div style={{width:28,height:28,borderRadius:'50%',background:currentUser.avatarColor||gradeColor(currentUser.grade),display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0,overflow:'hidden'}}>
+              {currentUser.avatarImage?<img src={currentUser.avatarImage} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:currentUser.avatar}
+            </div>
             <div className="ui" style={{flex:1,minWidth:0}}>
               <div style={{fontSize:12,fontWeight:600,color:'var(--txt)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{currentUser.pseudo}</div>
               <div className={gradeClass(currentUser.grade)} style={{fontSize:9,fontFamily:'var(--fc)'}}>{currentUser.grade}</div>
@@ -1753,7 +1824,9 @@ function App(){
             <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>VMF // {PAGE_NAMES[page]||page}</div>
           </div>
           <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8}}>
-            <div onClick={()=>setPage('profile')} style={{width:28,height:28,borderRadius:'50%',background:currentUser.avatarColor||gradeColor(currentUser.grade),display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,cursor:'pointer'}} title="Mon profil">{currentUser.avatar}</div>
+            <div onClick={()=>setPage('profile')} style={{width:28,height:28,borderRadius:'50%',background:currentUser.avatarColor||gradeColor(currentUser.grade),display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,cursor:'pointer',overflow:'hidden'}} title="Mon profil">
+              {currentUser.avatarImage?<img src={currentUser.avatarImage} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:currentUser.avatar}
+            </div>
             <span style={{fontSize:11,fontFamily:'var(--fc)',color:'var(--txtm)'}}>{currentUser.pseudo}</span>
             <span className={`bdg ${grBadge(currentUser.grade)}`}>{currentUser.grade}</span>
           </div>
