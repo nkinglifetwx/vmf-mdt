@@ -373,7 +373,9 @@ function Dashboard({currentUser}){
                   if(!m)return null;
                   return(
                     <div key={p.id} style={{display:'flex',alignItems:'center',gap:6,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:20,padding:'3px 9px 3px 4px',fontSize:11}}>
-                      <div style={{width:18,height:18,borderRadius:'50%',background:m.avatarColor||gradeColor(m.grade),display:'flex',alignItems:'center',justifyContent:'center',fontSize:11}}>{m.avatar}</div>
+                      <div style={{width:18,height:18,borderRadius:'50%',background:m.avatarColor||gradeColor(m.grade),display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,overflow:'hidden'}}>
+                        {m.avatarImage?<img src={m.avatarImage} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:m.avatar}
+                      </div>
                       <span style={{color:'var(--txt2)'}}>{m.pseudo}</span>
                       <span className={gradeClass(m.grade)} style={{fontSize:9,fontFamily:'var(--fc)'}}>{m.grade}</span>
                     </div>
@@ -430,8 +432,8 @@ function Members({currentUser,perms}){
             {filtered.map(m=>(
               <tr key={m.id}>
                 <td><div style={{display:'flex',alignItems:'center',gap:9}}>
-                  <div style={{width:26,height:26,borderRadius:'50%',background:m.avatarColor||gradeColor(m.grade),display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0,position:'relative'}}>
-                    {m.avatar}
+                  <div style={{width:26,height:26,borderRadius:'50%',background:m.avatarColor||gradeColor(m.grade),display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0,position:'relative',overflow:'hidden'}}>
+                    {m.avatarImage?<img src={m.avatarImage} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:m.avatar}
                     {isOnline(m.id)&&<span style={{position:'absolute',bottom:-1,right:-1,width:8,height:8,borderRadius:'50%',background:'var(--green)',border:'2px solid var(--bgc)'}}></span>}
                   </div>
                   <span style={{color:'var(--txt)',fontWeight:600}}>{m.pseudo}</span>
@@ -667,6 +669,8 @@ function Vehicles({currentUser,perms}){
 // ─── FOUR ─────────────────────────────────────────────────────────────────────
 function Four({currentUser,perms}){
   const[items,setItems]=useState([]);
+  const[storageItems,setStorageItems]=useState([]);
+  const items_storage_ref=useRef([]);
   const[treasury,setTreasury]=useState(null);
   const[warehouses,setWarehouses]=useState([]);
   const[showAddItem,setShowAddItem]=useState(false);
@@ -683,6 +687,7 @@ function Four({currentUser,perms}){
   const[buyWarehouse,setBuyWarehouse]=useState('');
   const[sellQty,setSellQty]=useState(1);
   const[sellPrice2,setSellPrice2]=useState('');
+  const[sellWarehouse,setSellWarehouse]=useState('');
   const[manualAmt,setManualAmt]=useState('');
   const[manualReason,setManualReason]=useState('');
 
@@ -691,7 +696,8 @@ function Four({currentUser,perms}){
     const u2=fbLsnD('treasury','main',setTreasury);
     const u3=fbLsn('four_transactions',d=>setTransLog(d.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0))));
     const u4=fbLsn('warehouses',setWarehouses);
-    return()=>{u1();u2();u3();u4();};
+    const u5=fbLsn('storage_items',d=>{setStorageItems(d);items_storage_ref.current=d;});
+    return()=>{u1();u2();u3();u4();u5();};
   },[]);
 
   if(!perms.four_view)return<AccessDenied/>;
@@ -743,8 +749,21 @@ function Four({currentUser,perms}){
     await fbSet('four_items',showSell.id,{stock:(showSell.stock||0)-qty,totalSold:(showSell.totalSold||0)+qty,revenue:(showSell.revenue||0)+gain});
     await fbSet('treasury','main',{amount:tAmount+gain});
     await fbAdd('four_transactions',{type:'vente',item:showSell.name,qty,price:sprice,total:gain,by:currentUser.pseudo,date:fmtDate()});
-    pushLog('stock',`Vente: ${qty}x ${showSell.name} ${fmtMoney(gain)} par ${currentUser.pseudo}`,'info','four');
-    setShowSell(null);setSellQty(1);setSellPrice2('');
+    // Retirer du stockage entrepôt sélectionné
+    const effectiveWh=sellWarehouse||(()=>{const whs=[...new Set(items_storage_ref.current.filter(i=>i.name===showSell.name&&i.qty>0).map(i=>i.warehouseId))];return whs.length===1?whs[0]:'';})();
+    if(effectiveWh){
+      const storageMatches=items_storage_ref.current.filter(i=>i.warehouseId===effectiveWh&&i.name===showSell.name);
+      let remaining=qty;
+      for(const si of storageMatches){
+        if(remaining<=0)break;
+        const take=Math.min(si.qty,remaining);
+        if(si.qty-take<=0)await fbDel('storage_items',si.id);
+        else await fbSet('storage_items',si.id,{qty:si.qty-take});
+        remaining-=take;
+      }
+    }
+    pushLog('stock',`Vente: ${qty}x ${showSell.name} ${fmtMoney(gain)} par ${currentUser.pseudo}${sellWarehouse?' depuis '+warehouses.find(w=>w.id===sellWarehouse)?.name:''}`, 'info','four');
+    setShowSell(null);setSellQty(1);setSellPrice2('');setSellWarehouse('');
   };
 
   const saveEditItem=async()=>{
@@ -996,19 +1015,39 @@ function Four({currentUser,perms}){
       </Modal>}
 
       {/* Modal vente */}
-      {showSell&&<Modal title={`💵 Vendre — ${showSell.name}`} onClose={()=>setShowSell(null)} footer={<><button className="btn btn-s" onClick={()=>setShowSell(null)}>Annuler</button><button className="btn btn-g" onClick={sellItem}>Confirmer la vente</button></>}>
-        <div style={{background:'var(--bg3)',borderRadius:'var(--r)',padding:12,marginBottom:14}}>
-          <div style={{display:'flex',gap:20}}>
-            <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>PRIX SUGGÉRÉ</div><div style={{fontSize:14,fontFamily:'var(--fc)',color:'var(--green)',fontWeight:700}}>{fmtMoney(showSell.sellPrice)}</div></div>
-            <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>STOCK DISPO</div><div style={{fontSize:14,fontFamily:'var(--fc)',color:'var(--txt)',fontWeight:700}}>{showSell.stock||0}</div></div>
+      {showSell&&(()=>{
+        // Trouver les entrepôts qui ont ce produit en stock
+        const whsWithStock=[...new Set(items_storage_ref.current.filter(i=>i.name===showSell.name&&i.qty>0).map(i=>i.warehouseId))];
+        const defaultWh=whsWithStock.length===1?whsWithStock[0]:'';
+        // Init sellWarehouse si pas encore set et qu'il y a un défaut
+        return(
+        <Modal title={`💵 Vendre — ${showSell.name}`} onClose={()=>{setShowSell(null);setSellWarehouse('');}} footer={<><button className="btn btn-s" onClick={()=>{setShowSell(null);setSellWarehouse('');}}>Annuler</button><button className="btn btn-g" onClick={sellItem}>Confirmer la vente</button></>}>
+          <div style={{background:'var(--bg3)',borderRadius:'var(--r)',padding:12,marginBottom:14}}>
+            <div style={{display:'flex',gap:20}}>
+              <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>PRIX SUGGÉRÉ</div><div style={{fontSize:14,fontFamily:'var(--fc)',color:'var(--green)',fontWeight:700}}>{fmtMoney(showSell.sellPrice)}</div></div>
+              <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>STOCK DISPO</div><div style={{fontSize:14,fontFamily:'var(--fc)',color:'var(--txt)',fontWeight:700}}>{showSell.stock||0}</div></div>
+            </div>
           </div>
-        </div>
-        <div className="fg"><label className="lbl">QUANTITÉ VENDUE</label><input type="number" className="inp" min="1" max={showSell.stock||0} value={sellQty} onChange={e=>setSellQty(e.target.value)} autoFocus/></div>
-        <div className="fg"><label className="lbl">PRIX RÉEL (vide = prix suggéré)</label><input type="number" className="inp" value={sellPrice2} onChange={e=>setSellPrice2(e.target.value)} placeholder={String(showSell.sellPrice)}/></div>
-        {sellQty>0&&<div style={{background:'var(--greenf)',border:'1px solid rgba(0,208,132,.3)',borderRadius:'var(--r)',padding:'9px 12px',fontSize:12,fontFamily:'var(--fc)',display:'flex',justifyContent:'space-between'}}>
-          <span>Gain total:</span><span style={{fontWeight:700,color:'var(--green)'}}>{fmtMoney((parseInt(sellPrice2)||showSell.sellPrice)*parseInt(sellQty||1))}</span>
-        </div>}
-      </Modal>}
+          <div className="fg"><label className="lbl">QUANTITÉ VENDUE</label><input type="number" className="inp" min="1" max={showSell.stock||0} value={sellQty} onChange={e=>setSellQty(e.target.value)} autoFocus/></div>
+          <div className="fg"><label className="lbl">PRIX RÉEL (vide = prix suggéré)</label><input type="number" className="inp" value={sellPrice2} onChange={e=>setSellPrice2(e.target.value)} placeholder={String(showSell.sellPrice)}/></div>
+          <div className="fg">
+            <label className="lbl">RETIRER DE L'ENTREPÔT</label>
+            <select className="sel" value={sellWarehouse||defaultWh} onChange={e=>setSellWarehouse(e.target.value)}>
+              <option value="">— Ne pas modifier le stockage</option>
+              {warehouses.sort((a,b)=>a.name.localeCompare(b.name)).map(w=>{
+                const stockInWh=items_storage_ref.current.filter(i=>i.name===showSell.name&&i.warehouseId===w.id).reduce((s,i)=>s+i.qty,0);
+                return<option key={w.id} value={w.id}>{w.name}{w.zone?` (${w.zone})`:''}{stockInWh>0?` — ${stockInWh} en stock`:' — vide'}</option>;
+              })}
+            </select>
+            {whsWithStock.length===0&&<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',marginTop:4}}>Aucun stock trouvé dans les entrepôts pour ce produit.</div>}
+            {whsWithStock.length===1&&!sellWarehouse&&<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--green)',marginTop:4}}>✓ Entrepôt automatiquement détecté : {warehouses.find(w=>w.id===defaultWh)?.name}</div>}
+          </div>
+          {sellQty>0&&<div style={{background:'var(--greenf)',border:'1px solid rgba(0,208,132,.3)',borderRadius:'var(--r)',padding:'9px 12px',fontSize:12,fontFamily:'var(--fc)',display:'flex',justifyContent:'space-between'}}>
+            <span>Gain total:</span><span style={{fontWeight:700,color:'var(--green)'}}>{fmtMoney((parseInt(sellPrice2)||showSell.sellPrice)*parseInt(sellQty||1))}</span>
+          </div>}
+        </Modal>
+        );
+      })()}
     </div>
   );
 }
@@ -1557,8 +1596,10 @@ function Profile({currentUser,setCurrentUser}){
   };
   const saveProfile=async()=>{
     if(!pseudo.trim()){notify('Le pseudo ne peut pas être vide',true);return;}
+    const updated={...currentUser,pseudo,avatar,avatarColor,avatarImage:avatarImage||'',discordUsername:discord};
     await fbSet('members',currentUser.id,{pseudo,avatar,avatarColor,avatarImage:avatarImage||'',discordUsername:discord});
-    setCurrentUser({...currentUser,pseudo,avatar,avatarColor,avatarImage:avatarImage||'',discordUsername:discord});
+    saveSession(updated);
+    setCurrentUser(updated);
     notify('✓ Profil sauvegardé');
   };
   const changePwd=async()=>{
@@ -1720,8 +1761,25 @@ const NAV=[
 const PAGE_NAMES={dashboard:'Dashboard',members:'Membres',weapons:'Armes',debts:'Dettes',vehicles:'Véhicules',chat:'Messagerie',map:'Carte',announcements:'Annonces',logs:'Logs',permissions:'Permissions',accounts:'Comptes',storage:'Stockage',four:'Four — Économie',webhooks:'Webhooks Discord',profile:'Mon Profil'};
 
 // ─── APP ─────────────────────────────────────────────────────────────────────
+const SESSION_KEY='vmf_session';
+const SESSION_TTL=8*60*60*1000; // 8 heures
+
+function saveSession(user){
+  try{sessionStorage.setItem(SESSION_KEY,JSON.stringify({user,ts:Date.now()}));}catch(e){}
+}
+function loadSession(){
+  try{
+    const raw=sessionStorage.getItem(SESSION_KEY);
+    if(!raw)return null;
+    const{user,ts}=JSON.parse(raw);
+    if(Date.now()-ts>SESSION_TTL){sessionStorage.removeItem(SESSION_KEY);return null;}
+    return user;
+  }catch(e){return null;}
+}
+function clearSession(){try{sessionStorage.removeItem(SESSION_KEY);}catch(e){}}
+
 function App(){
-  const[currentUser,setCurrentUser]=useState(null);
+  const[currentUser,setCurrentUser]=useState(()=>loadSession());
   const[page,setPage]=useState('dashboard');
   const[fbPermsData,setFbPermsData]=useState(null);
   const[memberPermsData,setMemberPermsData]=useState({});
@@ -1748,10 +1806,16 @@ function App(){
 
   const logout=async()=>{
     if(currentUser){await setPresenceF(currentUser.accountId,currentUser.id,false);pushLog('connexion',`${currentUser.pseudo} déconnecté`,'info','connexions');}
+    clearSession();
     setCurrentUser(null);
   };
 
-  if(!currentUser)return<LoginScreen onLogin={setCurrentUser}/>;
+  // Sync session when currentUser changes
+  useEffect(()=>{
+    if(currentUser)saveSession(currentUser);
+  },[currentUser]);
+
+  if(!currentUser)return<LoginScreen onLogin={u=>{saveSession(u);setCurrentUser(u);}}/>;
   const grBadge=g=>({Heritier:'bdg-r',Regent:'bdg-gd',Senechaux:'bdg-g',Syndic:'bdg-b',Collaborateur:'bdg-gr'}[g]||'bdg-gr');
 
   const renderPage=()=>{
