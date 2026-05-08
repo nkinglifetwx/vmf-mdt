@@ -124,9 +124,6 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--fm
 .ptog.on{background:var(--green)}.ptog.off{background:var(--bdrb)}
 .ptog::after{content:'';position:absolute;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .2s;}
 .ptog.on::after{left:18px}.ptog.off::after{left:2px}
-.four-item{background:var(--bgc);border:1px solid var(--bdr);border-radius:var(--rl);padding:14px;transition:var(--tr);position:relative;overflow:hidden;}
-.four-item:hover{border-color:var(--bdrb);background:var(--bgch);}
-.four-item::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--acc);}
 .treasury{background:linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%);border:1px solid var(--gold);border-radius:var(--rl);padding:20px;margin-bottom:16px;position:relative;overflow:hidden;}
 .treasury::before{content:'💰';position:absolute;right:16px;top:16px;font-size:40px;opacity:.07;}
 .emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;max-height:180px;overflow-y:auto;}
@@ -141,6 +138,34 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--fm
 .avatar-big:hover{border-color:var(--acc);}
 .profile-card{background:var(--bg3);border:1px solid var(--bdrb);border-radius:var(--rl);padding:24px;max-width:480px;margin:0 auto;}
 .wh-section{background:var(--bg3);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;}
+/* ── ÉTIQUETTES FOUR ── */
+.etiquette{background:var(--bgc);border:1px solid var(--bdr);border-radius:10px;overflow:hidden;transition:var(--tr);cursor:pointer;position:relative;}
+.etiquette:hover{border-color:var(--bdrb);transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.3);}
+.etiquette-compact{display:flex;align-items:center;gap:10px;padding:10px 12px;}
+.etiquette-img{width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid var(--bdr);}
+.etiquette-img-ph{width:44px;height:44px;border-radius:8px;background:var(--bg3);border:1px dashed var(--bdrb);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.etiquette-info{flex:1;min-width:0;}
+.etiquette-name{font-size:12px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.etiquette-cat{font-size:9px;font-family:var(--fc);margin-top:1px;}
+.etiquette-loc{font-size:9px;font-family:var(--fc);color:var(--txtm);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.etiquette-stock{text-align:right;flex-shrink:0;}
+.etiquette-qty{font-size:18px;font-weight:800;line-height:1;}
+.etiquette-unit{font-size:9px;font-family:var(--fc);color:var(--txtm);}
+.etiquette-expand{overflow:hidden;transition:max-height .25s ease,opacity .2s ease;max-height:0;opacity:0;}
+.etiquette-expand.open{max-height:400px;opacity:1;}
+.etiquette-body{padding:10px 12px 12px;border-top:1px solid var(--bdr);background:var(--bg3);}
+.etiquette-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;}
+.etiquette-cell{background:var(--bgc);border-radius:5px;padding:5px 8px;}
+.etiquette-cell-lbl{font-size:8px;font-family:var(--fc);color:var(--txtm);text-transform:uppercase;}
+.etiquette-cell-val{font-size:11px;font-family:var(--fc);font-weight:700;margin-top:1px;}
+.etiquette-chevron{font-size:11px;color:var(--txtm);flex-shrink:0;transition:transform .2s;}
+.etiquette-chevron.open{transform:rotate(180deg);}
+/* search bar */
+.searchbar{background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r);padding:7px 11px;font-size:12px;color:var(--txt);font-family:var(--fm);outline:none;transition:var(--tr);width:220px;}
+.searchbar:focus{border-color:var(--acc);}
+.searchbar::placeholder{color:var(--txtm);}
+/* flappy bird easter egg */
+.flappy-canvas{border:2px solid var(--bdr);border-radius:var(--r);display:block;cursor:pointer;}
 @media(max-width:900px){:root{--sw:44px}.nav-it span:not(.ic),.logo-text,.logo-sub,.nav-lbl,.suser .ui,.sfooter span{display:none}.nav-it{justify-content:center;padding:9px}.slogo{padding:10px 6px}.logo-mark{justify-content:center}}
 </style>
 </head>
@@ -148,32 +173,25 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--fm
 <script type="text/babel">
 const{useState,useEffect,useRef,useMemo,useCallback}=React;
 
-// ─── FB HELPERS ───────────────────────────────────────────────────────────────
 const fbAdd=(col,data)=>window.fb.add(col,data);
 const fbSet=(col,id,data)=>window.fb.set(col,id,data);
 const fbDel=(col,id)=>window.fb.delete(col,id);
 const fbLsn=(col,cb)=>window.fb.listen(col,cb);
 const fbLsnD=(col,id,cb)=>window.fb.listenDoc(col,id,cb);
 
-// ─── PRESENCE ────────────────────────────────────────────────────────────────
 const setPresenceF=async(accountId,memberId,online)=>{
   try{await fbSet('presence',accountId,{online,memberId:memberId||'',lastSeen:Date.now()});}catch(e){}
 };
 
-// ─── WEBHOOKS ────────────────────────────────────────────────────────────────
 const sendWebhook=async(url,payload)=>{
   if(!url)return;
-  try{
-    await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  }catch(e){console.warn('Webhook error',e);}
+  try{await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});}catch(e){}
 };
 
-// Charge les webhooks depuis Firestore (doc settings/webhooks)
 let _webhooks={};
 const getWebhook=(section)=>_webhooks[section]||'';
 window._setWebhooks=(w)=>{_webhooks=w||{};};
 
-// ─── UTILS ───────────────────────────────────────────────────────────────────
 const fmtMoney=n=>'$'+Number(n||0).toLocaleString('fr-FR');
 const fmtDate=()=>new Date().toISOString().split('T')[0];
 const fmtTime=()=>new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -181,10 +199,11 @@ const fmtTime=()=>new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-d
 const GRADES=['Collaborateur','Syndic','Senechaux','Regent','Heritier'];
 const WEAPON_TYPES=['cambu','couteau','hache','katana','machette','marteau','pied de biche','petoire','queue de billard','queue de golf','revolver','batte'];
 const ITEM_CATS=['Arme','Document','Drogue','Matériel','Autre','Argent','Véhicule'];
-const FOUR_CATS=['Drogue','Arme','Munitions','Matériel','Nourriture','Alcool','Electronique','Luxe','Argent','Autre'];
+// Catégories simplifiées pour le Four
+const FOUR_CATS=['Drogue','Matériel','Objets','Autre'];
+const FOUR_CATS_ALL=['Drogue','Arme','Munitions','Matériel','Nourriture','Alcool','Electronique','Luxe','Argent','Autre','Objets'];
 
 const AVATAR_EMOJIS=['👤','💀','🐺','🦁','🐉','🦅','⚡','🔥','💎','🗡','🎯','🏴‍☠️','🤖','👑','🦊','🐍','🌙','⭐','💣','🎭'];
-const ITEM_EMOJIS=['📦','💊','🔫','🗡','💰','🚗','📄','🔧','🧪','💎','🍺','🥩','📱','⚡','🎁','🧨','🔑','🎰','🏆','🌿','💉','🔴','⚫','🟡'];
 const AVATAR_COLORS=['#c0392b','#c9a84c','#00d084','#60a5fa','#a78bfa','#f97316','#ec4899','#14b8a6','#64748b','#c8cad4','#ef4444','#8b5cf6'];
 
 const ALL_PERMS={
@@ -211,16 +230,16 @@ const ALL_PERMS={
   logs_view:{label:'📋 Voir les logs',cat:'Logs'},
   map_view:{label:'🗺 Voir la carte',cat:'Carte'},
   webhooks_manage:{label:'🔗 Gérer les webhooks',cat:'Admin'},
+  flappy_access:{label:'🐦 Accès Flappy Bird',cat:'Easter Egg'},
 };
 
-// FIX #6 : Héritier a TOUT activé par défaut — on calcule dynamiquement
 const ALL_TRUE=Object.fromEntries(Object.keys(ALL_PERMS).map(k=>[k,true]));
 const DEFAULT_PERMS={
   Heritier:ALL_TRUE,
-  Regent:{members_view:true,members_add:true,members_edit:true,weapons_view:true,weapons_add:true,weapons_delete:true,debts_view:true,debts_manage:true,vehicles_view:true,vehicles_add:true,storage_view:true,storage_manage:true,four_view:true,four_buy:true,four_sell:true,four_manage:true,announcements_view:true,announcements_post:true,chat_read:true,chat_write:true,logs_view:false,map_view:true,webhooks_manage:true},
-  Senechaux:{members_view:true,members_add:false,members_edit:false,weapons_view:true,weapons_add:true,weapons_delete:false,debts_view:true,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:true,storage_manage:true,four_view:true,four_buy:false,four_sell:true,four_manage:false,announcements_view:true,announcements_post:true,chat_read:true,chat_write:true,logs_view:false,map_view:true,webhooks_manage:false},
-  Syndic:{members_view:true,members_add:false,members_edit:false,weapons_view:true,weapons_add:false,weapons_delete:false,debts_view:true,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:true,storage_manage:false,four_view:true,four_buy:false,four_sell:true,four_manage:false,announcements_view:true,announcements_post:false,chat_read:true,chat_write:true,logs_view:false,map_view:true,webhooks_manage:false},
-  Collaborateur:{members_view:true,members_add:false,members_edit:false,weapons_view:false,weapons_add:false,weapons_delete:false,debts_view:false,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:false,storage_manage:false,four_view:true,four_buy:false,four_sell:false,four_manage:false,announcements_view:true,announcements_post:false,chat_read:true,chat_write:true,logs_view:false,map_view:true,webhooks_manage:false},
+  Regent:{...ALL_TRUE,logs_view:false,flappy_access:false},
+  Senechaux:{members_view:true,members_add:false,members_edit:false,weapons_view:true,weapons_add:true,weapons_delete:false,debts_view:true,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:true,storage_manage:true,four_view:true,four_buy:false,four_sell:true,four_manage:false,announcements_view:true,announcements_post:true,chat_read:true,chat_write:true,logs_view:false,map_view:true,webhooks_manage:false,flappy_access:false},
+  Syndic:{members_view:true,members_add:false,members_edit:false,weapons_view:true,weapons_add:false,weapons_delete:false,debts_view:true,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:true,storage_manage:false,four_view:true,four_buy:false,four_sell:true,four_manage:false,announcements_view:true,announcements_post:false,chat_read:true,chat_write:true,logs_view:false,map_view:true,webhooks_manage:false,flappy_access:false},
+  Collaborateur:{members_view:true,members_add:false,members_edit:false,weapons_view:false,weapons_add:false,weapons_delete:false,debts_view:false,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:false,storage_manage:false,four_view:true,four_buy:false,four_sell:false,four_manage:false,announcements_view:true,announcements_post:false,chat_read:true,chat_write:true,logs_view:false,map_view:true,webhooks_manage:false,flappy_access:false},
 };
 
 const gradeColor=g=>({Heritier:'#c8cad4',Regent:'#c9a84c',Senechaux:'#00d084',Syndic:'#60a5fa',Collaborateur:'#7a90a8'}[g]||'#7a90a8');
@@ -237,7 +256,6 @@ const pushLog=async(type,msg,level='info',webhookSection)=>{
   }
 };
 
-// ─── MODAL ───────────────────────────────────────────────────────────────────
 function Modal({title,onClose,children,footer,wide}){
   return(
     <div className="ov" onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -250,7 +268,6 @@ function Modal({title,onClose,children,footer,wide}){
   );
 }
 
-// ─── AVATAR PICKER ───────────────────────────────────────────────────────────
 function AvatarPicker({emoji,color,onChangeEmoji,onChangeColor}){
   return(
     <div>
@@ -274,7 +291,6 @@ function AvatarPicker({emoji,color,onChangeEmoji,onChangeColor}){
   );
 }
 
-// ─── ITEM IMAGE PICKER ───────────────────────────────────────────────────────
 function ItemIconPicker({imageUrl,onChangeImage}){
   const[urlInput,setUrlInput]=useState(imageUrl||'');
   const[dragging,setDragging]=useState(false);
@@ -290,23 +306,16 @@ function ItemIconPicker({imageUrl,onChangeImage}){
         <label className="lbl">LIEN IMAGE</label>
         <input className="inp" value={urlInput} onChange={e=>handleUrl(e.target.value)} placeholder="https://...image.png"/>
       </div>
-      <div
-        onDragOver={e=>{e.preventDefault();setDragging(true);}}
-        onDragLeave={()=>setDragging(false)}
-        onDrop={handleDrop}
-        style={{border:`2px dashed ${dragging?'var(--acc)':'var(--bdrb)'}`,borderRadius:'var(--r)',padding:12,textAlign:'center',cursor:'default',transition:'var(--tr)',background:dragging?'var(--accf)':'transparent',marginBottom:8}}
-      >
-        {urlInput
-          ?<img src={urlInput} alt="preview" style={{width:52,height:52,objectFit:'cover',borderRadius:8,border:'1px solid var(--bdr)'}} onError={e=>{e.target.style.display='none';}}/>
-          :<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>Glisser une image ici</div>
-        }
+      <div onDragOver={e=>{e.preventDefault();setDragging(true);}} onDragLeave={()=>setDragging(false)} onDrop={handleDrop}
+        style={{border:`2px dashed ${dragging?'var(--acc)':'var(--bdrb)'}`,borderRadius:'var(--r)',padding:12,textAlign:'center',cursor:'default',transition:'var(--tr)',background:dragging?'var(--accf)':'transparent',marginBottom:8}}>
+        {urlInput?<img src={urlInput} alt="preview" style={{width:52,height:52,objectFit:'cover',borderRadius:8,border:'1px solid var(--bdr)'}} onError={e=>{e.target.style.display='none';}}/>
+          :<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>Glisser une image ici</div>}
       </div>
       {urlInput&&<button className="btn btn-s btn-sm" style={{fontSize:10}} onClick={()=>handleUrl('')}>✕ Retirer</button>}
     </div>
   );
 }
 
-// ─── ACCESS DENIED ───────────────────────────────────────────────────────────
 function AccessDenied(){
   return(
     <div className="pe" style={{display:'flex',alignItems:'center',justifyContent:'center',height:300}}>
@@ -316,6 +325,130 @@ function AccessDenied(){
         <div style={{fontSize:11,fontFamily:'var(--fc)',color:'var(--txtm)'}}>Permissions insuffisantes pour votre grade</div>
         <div style={{marginTop:12}}><span className="bdg bdg-r">GRADE INSUFFISANT</span></div>
       </div>
+    </div>
+  );
+}
+
+// ─── FLAPPY BIRD ─────────────────────────────────────────────────────────────
+function FlappyBird(){
+  const canvasRef=useRef(null);
+  const stateRef=useRef({
+    bird:{y:150,vy:0},pipes:[],score:0,best:0,frame:0,status:'idle'
+  });
+  const rafRef=useRef(null);
+  const W=320,H=480,GAP=130,PIPE_W=44,SPEED=2.2,GRAV=0.38,JUMP=-7;
+
+  const resetPipes=()=>[
+    {x:W+60,top:80+Math.random()*(H-GAP-120)},
+    {x:W+60+200,top:80+Math.random()*(H-GAP-120)},
+  ];
+
+  const draw=useCallback(()=>{
+    const c=canvasRef.current;if(!c)return;
+    const ctx=c.getContext('2d');
+    const s=stateRef.current;
+    // bg
+    ctx.fillStyle='#0e0e10';ctx.fillRect(0,0,W,H);
+    // ground
+    ctx.fillStyle='#1a1a1e';ctx.fillRect(0,H-40,W,40);
+    ctx.fillStyle='#2a2a30';ctx.fillRect(0,H-40,W,2);
+    // pipes
+    s.pipes.forEach(p=>{
+      ctx.fillStyle='#00d084';
+      ctx.fillRect(p.x,0,PIPE_W,p.top);
+      ctx.fillRect(p.x,p.top+GAP,PIPE_W,H-p.top-GAP);
+      ctx.fillStyle='#00b874';
+      ctx.fillRect(p.x-3,p.top-18,PIPE_W+6,18);
+      ctx.fillRect(p.x-3,p.top+GAP,PIPE_W+6,18);
+    });
+    // bird
+    const bx=60,by=s.bird.y;
+    ctx.save();ctx.translate(bx+12,by+12);
+    ctx.rotate(Math.max(-0.5,Math.min(0.8,s.bird.vy*0.06)));
+    ctx.fillStyle='#c9a84c';
+    ctx.beginPath();ctx.ellipse(0,0,14,10,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#e87060';
+    ctx.beginPath();ctx.ellipse(12,2,6,4,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-2,-4,5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#0e0e10';ctx.beginPath();ctx.arc(-1,-4,2.5,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+    // score
+    ctx.fillStyle='#f0f0f5';ctx.font='bold 22px Syne,sans-serif';ctx.textAlign='center';
+    ctx.fillText(s.score,W/2,40);
+    // status overlay
+    if(s.status==='idle'){
+      ctx.fillStyle='rgba(14,14,16,.75)';ctx.fillRect(0,0,W,H);
+      ctx.fillStyle='#c8cad4';ctx.font='bold 28px Syne,sans-serif';ctx.textAlign='center';
+      ctx.fillText('FLAPPY VMF',W/2,H/2-40);
+      ctx.fillStyle='#9090a0';ctx.font='14px JetBrains Mono,monospace';
+      ctx.fillText('Cliquer ou Espace pour jouer',W/2,H/2);
+      if(s.best>0){ctx.fillStyle='#c9a84c';ctx.font='13px JetBrains Mono,monospace';ctx.fillText('BEST: '+s.best,W/2,H/2+30);}
+    }
+    if(s.status==='dead'){
+      ctx.fillStyle='rgba(14,14,16,.75)';ctx.fillRect(0,0,W,H);
+      ctx.fillStyle='#e87060';ctx.font='bold 26px Syne,sans-serif';ctx.textAlign='center';
+      ctx.fillText('GAME OVER',W/2,H/2-40);
+      ctx.fillStyle='#f0f0f5';ctx.font='16px JetBrains Mono,monospace';
+      ctx.fillText('Score: '+s.score,W/2,H/2-10);
+      ctx.fillStyle='#c9a84c';ctx.fillText('Best: '+s.best,W/2,H/2+16);
+      ctx.fillStyle='#9090a0';ctx.font='13px JetBrains Mono,monospace';
+      ctx.fillText('Cliquer pour rejouer',W/2,H/2+48);
+    }
+  },[]);
+
+  const tick=useCallback(()=>{
+    const s=stateRef.current;
+    if(s.status!=='playing'){draw();return;}
+    s.bird.vy+=GRAV;
+    s.bird.y+=s.bird.vy;
+    s.frame++;
+    // move pipes
+    s.pipes.forEach(p=>{p.x-=SPEED;});
+    // recycle pipe
+    s.pipes.forEach(p=>{
+      if(p.x+PIPE_W<0){p.x=W+60;p.top=80+Math.random()*(H-GAP-120);}
+    });
+    // score
+    s.pipes.forEach(p=>{
+      if(Math.abs(p.x+PIPE_W/2-60)<SPEED+0.5){s.score++;}
+    });
+    // collision
+    const bx=60,by=s.bird.y;
+    if(by+20>H-40||by<0){s.status='dead';s.best=Math.max(s.best,s.score);}
+    s.pipes.forEach(p=>{
+      if(bx+22>p.x&&bx<p.x+PIPE_W){if(by<p.top||by+20>p.top+GAP){s.status='dead';s.best=Math.max(s.best,s.score);}}
+    });
+    draw();
+    rafRef.current=requestAnimationFrame(tick);
+  },[draw]);
+
+  useEffect(()=>{
+    draw();
+    return()=>{if(rafRef.current)cancelAnimationFrame(rafRef.current);};
+  },[draw]);
+
+  const action=()=>{
+    const s=stateRef.current;
+    if(s.status==='idle'||s.status==='dead'){
+      s.bird={y:150,vy:0};s.pipes=resetPipes();s.score=0;s.status='playing';
+      if(rafRef.current)cancelAnimationFrame(rafRef.current);
+      rafRef.current=requestAnimationFrame(tick);
+    } else if(s.status==='playing'){
+      s.bird.vy=JUMP;
+    }
+  };
+
+  useEffect(()=>{
+    const onKey=e=>{if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();action();}};
+    window.addEventListener('keydown',onKey);
+    return()=>window.removeEventListener('keydown',onKey);
+  },[tick]);
+
+  return(
+    <div className="pe" style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
+      <div style={{fontSize:13,fontWeight:700,color:'var(--acc)',letterSpacing:'.1em'}}>🐦 FLAPPY VMF — Easter Egg</div>
+      <canvas ref={canvasRef} width={W} height={H} className="flappy-canvas" onClick={action}/>
+      <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>Cliquer sur le canvas ou appuyer sur Espace / ↑ pour sauter</div>
     </div>
   );
 }
@@ -412,10 +545,7 @@ function Members({currentUser,perms}){
     pushLog('modification',`Fiche ${editM.pseudo} modifiée par ${currentUser.pseudo}`,'info');
     setEditM(null);
   };
-  const delMember=async id=>{
-    await fbDel('members',id);
-    pushLog('suppression',`Membre supprimé par ${currentUser.pseudo}`,'danger','membres');
-  };
+  const delMember=async id=>{await fbDel('members',id);pushLog('suppression',`Membre supprimé par ${currentUser.pseudo}`,'danger','membres');};
   const filtered=(filter==='all'?members:members.filter(m=>m.grade===filter)).sort((a,b)=>a.pseudo.localeCompare(b.pseudo));
   return(
     <div className="pe">
@@ -454,7 +584,6 @@ function Members({currentUser,perms}){
       {showAdd&&<Modal title="Nouveau Membre" onClose={()=>setShowAdd(false)} footer={<><button className="btn btn-s" onClick={()=>setShowAdd(false)}>Annuler</button><button className="btn btn-p" onClick={addMember}>Confirmer</button></>}>
         <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>
           <div className="avatar-big" style={{background:form.avatarColor,fontSize:28}}>{form.avatar}</div>
-          <div style={{flex:1,fontSize:11,color:'var(--txtm)',fontFamily:'var(--fc)'}}>Choisir ci-dessous</div>
         </div>
         <AvatarPicker emoji={form.avatar} color={form.avatarColor} onChangeEmoji={e=>setForm({...form,avatar:e})} onChangeColor={c=>setForm({...form,avatarColor:c})}/>
         <div className="fg"><label className="lbl">PSEUDO RP</label><input className="inp" value={form.pseudo} onChange={e=>setForm({...form,pseudo:e.target.value})} placeholder="Ex: Shadow"/></div>
@@ -667,6 +796,67 @@ function Vehicles({currentUser,perms}){
 }
 
 // ─── FOUR ─────────────────────────────────────────────────────────────────────
+const catColors={Drogue:'var(--green)',Arme:'#e87060',Munitions:'#f97316',Matériel:'#60a5fa',Nourriture:'#84cc16',Alcool:'#f59e0b',Electronique:'#a78bfa',Luxe:'var(--gold)',Argent:'var(--gold)',Autre:'var(--txtm)',Objets:'#a78bfa'};
+
+// Étiquette produit four
+function Etiquette({item,warehouses,storageItems,perms,onBuy,onSell,onEdit,onDel}){
+  const[open,setOpen]=useState(false);
+  const margin=item.sellPrice-item.buyPrice;
+  const marginPct=item.buyPrice>0?Math.round((margin/item.buyPrice)*100):0;
+  const stockColor=(item.stock||0)>0?'var(--txt)':'#e87060';
+  // localisation : entrepôts qui ont ce produit
+  const locs=[...new Set(storageItems.filter(s=>s.name===item.name&&s.qty>0).map(s=>s.warehouseId))];
+  const locNames=locs.map(id=>warehouses.find(w=>w.id===id)?.name||'?').join(', ');
+  const cat=catColors[item.category]||'var(--txtm)';
+  return(
+    <div className="etiquette" style={{borderTop:`3px solid ${cat}`}}>
+      {/* Compact row */}
+      <div className="etiquette-compact" onClick={()=>setOpen(o=>!o)}>
+        {item.imageUrl
+          ?<img src={item.imageUrl} alt={item.name} className="etiquette-img" onError={e=>e.target.style.display='none'}/>
+          :<div className="etiquette-img-ph">📦</div>
+        }
+        <div className="etiquette-info">
+          <div className="etiquette-name">{item.name}</div>
+          <div className="etiquette-cat" style={{color:cat}}>{item.category} · {item.unit}</div>
+          <div className="etiquette-loc">{locNames?`📍 ${locNames}`:'Aucun entrepôt'}</div>
+        </div>
+        <div className="etiquette-stock">
+          <div className="etiquette-qty" style={{color:stockColor}}>{item.stock||0}</div>
+          <div className="etiquette-unit">{item.unit}s</div>
+        </div>
+        <div className={`etiquette-chevron${open?' open':''}`}>▼</div>
+      </div>
+      {/* Expanded */}
+      <div className={`etiquette-expand${open?' open':''}`}>
+        <div className="etiquette-body">
+          <div className="etiquette-row">
+            <div className="etiquette-cell"><div className="etiquette-cell-lbl">ACHAT</div><div className="etiquette-cell-val" style={{color:'#e87060'}}>{fmtMoney(item.buyPrice)}</div></div>
+            <div className="etiquette-cell"><div className="etiquette-cell-lbl">VENTE</div><div className="etiquette-cell-val" style={{color:'var(--green)'}}>{fmtMoney(item.sellPrice)}</div></div>
+            <div className="etiquette-cell"><div className="etiquette-cell-lbl">MARGE</div><div className="etiquette-cell-val" style={{color:'var(--gold)'}}>+{marginPct}%</div></div>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
+            <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>REVENUS <span style={{color:'var(--green)',fontWeight:700}}>{fmtMoney(item.revenue||0)}</span></div>
+            <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>VENDU <span style={{color:'var(--txt)',fontWeight:700}}>{item.totalSold||0}</span></div>
+          </div>
+          {item.linkedWarehouseAuto&&item.linkedWarehouseId&&(
+            <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--green)',marginBottom:8,display:'flex',alignItems:'center',gap:4}}>
+              <span>🔗</span><span>Sync auto: {warehouses.find(w=>w.id===item.linkedWarehouseId)?.name||'?'}</span>
+            </div>
+          )}
+          <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+            {perms.four_buy&&<button className="btn btn-d btn-sm" style={{flex:1}} onClick={e=>{e.stopPropagation();onBuy(item);}}>🛒 Acheter</button>}
+            {perms.four_sell&&(item.stock||0)>0&&<button className="btn btn-g btn-sm" style={{flex:1}} onClick={e=>{e.stopPropagation();onSell(item);}}>💵 Vendre</button>}
+            {perms.four_sell&&(item.stock||0)===0&&<button className="btn btn-s btn-sm" style={{flex:1}} disabled>Stock vide</button>}
+            {perms.four_manage&&<button className="btn btn-s btn-sm" onClick={e=>{e.stopPropagation();onEdit(item);}}>✏</button>}
+            {perms.four_manage&&<button className="btn btn-d btn-sm" onClick={e=>{e.stopPropagation();onDel(item.id);}}>🗑</button>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Four({currentUser,perms}){
   const[items,setItems]=useState([]);
   const[storageItems,setStorageItems]=useState([]);
@@ -677,10 +867,10 @@ function Four({currentUser,perms}){
   const[showBuy,setShowBuy]=useState(null);
   const[showSell,setShowSell]=useState(null);
   const[showEditItem,setShowEditItem]=useState(null);
-  const[showManualT,setShowManualT]=useState(null); // 'add'|'remove'|'set'
+  const[showManualT,setShowManualT]=useState(null);
   const[transLog,setTransLog]=useState([]);
   const[catFilter,setCatFilter]=useState('all');
-  // forms
+  const[search,setSearch]=useState('');
   const emptyItem={name:'',buyPrice:'',sellPrice:'',category:'Drogue',unit:'unité',imageUrl:'',linkedWarehouseId:'',linkedWarehouseAuto:false};
   const[itemForm,setItemForm]=useState(emptyItem);
   const[buyQty,setBuyQty]=useState(1);
@@ -701,11 +891,9 @@ function Four({currentUser,perms}){
   },[]);
 
   if(!perms.four_view)return<AccessDenied/>;
-
   const tAmount=treasury?.amount||0;
   const ensureT=async()=>{if(!treasury)await fbSet('treasury','main',{amount:0});};
 
-  // FIX #3 : suppression produit four pour tous ceux qui ont four_manage
   const delItem=async id=>{
     const it=items.find(x=>x.id===id);
     if(!it)return;
@@ -720,7 +908,6 @@ function Four({currentUser,perms}){
     setShowAddItem(false);setItemForm(emptyItem);
   };
 
-  // FIX #2 : achat → sync stockage entrepôt lié
   const buyItem=async()=>{
     const qty=parseInt(buyQty)||1;
     if(!showBuy||qty<=0)return;
@@ -730,12 +917,11 @@ function Four({currentUser,perms}){
     await fbSet('four_items',showBuy.id,{stock:(showBuy.stock||0)+qty,totalBought:(showBuy.totalBought||0)+qty});
     await fbSet('treasury','main',{amount:tAmount-cost});
     await fbAdd('four_transactions',{type:'achat',item:showBuy.name,qty,price:showBuy.buyPrice,total:cost,by:currentUser.pseudo,date:fmtDate()});
-    // Sync stockage : entrepôt choisi à l'achat ou entrepôt lié auto
     const targetWh=buyWarehouse||(showBuy.linkedWarehouseAuto?showBuy.linkedWarehouseId:'');
     if(targetWh){
       await fbAdd('storage_items',{name:showBuy.name,category:showBuy.category||'Autre',qty,warehouseId:targetWh,addedBy:`[Four] ${currentUser.pseudo}`,date:fmtDate(),imageUrl:showBuy.imageUrl||'',note:`Achat depuis le Four`});
     }
-    pushLog('stock',`Achat: ${qty}x ${showBuy.name} ${fmtMoney(cost)} par ${currentUser.pseudo}${targetWh?' → '+warehouses.find(w=>w.id===targetWh)?.name:''}`, 'warn','four');
+    pushLog('stock',`Achat: ${qty}x ${showBuy.name} ${fmtMoney(cost)} par ${currentUser.pseudo}`,'warn','four');
     setShowBuy(null);setBuyQty(1);setBuyWarehouse('');
   };
 
@@ -749,7 +935,6 @@ function Four({currentUser,perms}){
     await fbSet('four_items',showSell.id,{stock:(showSell.stock||0)-qty,totalSold:(showSell.totalSold||0)+qty,revenue:(showSell.revenue||0)+gain});
     await fbSet('treasury','main',{amount:tAmount+gain});
     await fbAdd('four_transactions',{type:'vente',item:showSell.name,qty,price:sprice,total:gain,by:currentUser.pseudo,date:fmtDate()});
-    // Retirer du stockage entrepôt sélectionné
     const effectiveWh=sellWarehouse||(()=>{const whs=[...new Set(items_storage_ref.current.filter(i=>i.name===showSell.name&&i.qty>0).map(i=>i.warehouseId))];return whs.length===1?whs[0]:'';})();
     if(effectiveWh){
       const storageMatches=items_storage_ref.current.filter(i=>i.warehouseId===effectiveWh&&i.name===showSell.name);
@@ -762,7 +947,7 @@ function Four({currentUser,perms}){
         remaining-=take;
       }
     }
-    pushLog('stock',`Vente: ${qty}x ${showSell.name} ${fmtMoney(gain)} par ${currentUser.pseudo}${sellWarehouse?' depuis '+warehouses.find(w=>w.id===sellWarehouse)?.name:''}`, 'info','four');
+    pushLog('stock',`Vente: ${qty}x ${showSell.name} ${fmtMoney(gain)} par ${currentUser.pseudo}`,'info','four');
     setShowSell(null);setSellQty(1);setSellPrice2('');setSellWarehouse('');
   };
 
@@ -772,7 +957,6 @@ function Four({currentUser,perms}){
     setShowEditItem(null);
   };
 
-  // FIX #1 : retrait manuel avec raison obligatoire
   const doManualTreasury=async()=>{
     const v=parseInt(manualAmt);if(isNaN(v)||v<=0)return;
     if((showManualT==='add'||showManualT==='remove')&&!manualReason.trim()){alert('La raison est obligatoire.');return;}
@@ -787,14 +971,15 @@ function Four({currentUser,perms}){
     setShowManualT(null);setManualAmt('');setManualReason('');
   };
 
-  // FIX #4 : catégories étendues + FIX #5 tri alphabétique
-  const catColors={Drogue:'var(--green)',Arme:'#e87060',Munitions:'#f97316',Matériel:'#60a5fa',Nourriture:'#84cc16',Alcool:'#f59e0b',Electronique:'#a78bfa',Luxe:'var(--gold)',Argent:'var(--gold)',Autre:'var(--txtm)'};
-
   const totalRevenue=items.reduce((s,i)=>s+(i.revenue||0),0);
   const totalSpent=items.reduce((s,i)=>s+(i.totalBought||0)*(i.buyPrice||0),0);
 
   const sortedItems=[...items].sort((a,b)=>a.name.localeCompare(b.name));
-  const filteredItems=catFilter==='all'?sortedItems:sortedItems.filter(i=>i.category===catFilter);
+  const filteredItems=sortedItems.filter(i=>{
+    if(catFilter!=='all'&&i.category!==catFilter)return false;
+    if(search&&!i.name.toLowerCase().includes(search.toLowerCase()))return false;
+    return true;
+  });
 
   return(
     <div className="pe">
@@ -819,65 +1004,30 @@ function Four({currentUser,perms}){
         </div>
       </div>
 
-      {/* Header + filtres catégories */}
-      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+      {/* Filtres + recherche */}
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12,flexWrap:'wrap'}}>
         <span style={{fontSize:13,fontWeight:700,color:'var(--txt)'}}>🍖 Produits</span>
-        <div style={{display:'flex',gap:4,flexWrap:'wrap',marginLeft:8}}>
+        <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
           {['all',...FOUR_CATS].map(c=>(
             <button key={c} className={`btn btn-sm ${catFilter===c?'btn-p':'btn-s'}`} onClick={()=>setCatFilter(c)} style={{fontSize:10}}>{c==='all'?'Tous':c}</button>
           ))}
         </div>
+        <input className="searchbar" value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Rechercher un produit..."/>
         {perms.four_manage&&<button className="btn btn-p btn-sm" style={{marginLeft:'auto'}} onClick={()=>setShowAddItem(true)}>+ Produit</button>}
       </div>
 
       {filteredItems.length===0?
         <div className="card"><div style={{padding:36,textAlign:'center',color:'var(--txtm)',fontSize:12}}>Aucun produit</div></div>
       :
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(255px,1fr))',gap:12,marginBottom:20}}>
-          {filteredItems.map(item=>{
-            const margin=item.sellPrice-item.buyPrice;
-            const marginPct=item.buyPrice>0?Math.round((margin/item.buyPrice)*100):0;
-            return(
-              <div className="four-item" key={item.id} style={{borderTopColor:catColors[item.category]||'var(--acc)'}}>
-                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    {item.imageUrl
-                      ?<img src={item.imageUrl} alt={item.name} style={{width:40,height:40,borderRadius:8,objectFit:'cover',border:'1px solid var(--bdr)',flexShrink:0}}/>
-                      :<div style={{width:40,height:40,borderRadius:8,background:'var(--bg3)',border:'1px dashed var(--bdrb)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'var(--txtm)',flexShrink:0}}>?</div>
-                    }
-                    <div>
-                      <div style={{fontSize:12,fontWeight:700,color:'var(--txt)'}}>{item.name}</div>
-                      <div style={{fontSize:9,fontFamily:'var(--fc)',color:catColors[item.category]||'var(--txtm)',marginTop:1}}>{item.category} • {item.unit}</div>
-                    </div>
-                  </div>
-                  <div style={{display:'flex',gap:3}}>
-                    {perms.four_manage&&<button className="btn btn-s btn-sm" onClick={()=>setShowEditItem({...item})}>✏</button>}
-                    {/* FIX #3 : suppression accessible à tous ceux qui ont four_manage */}
-                    {perms.four_manage&&<button className="btn btn-d btn-sm" onClick={()=>delItem(item.id)}>🗑</button>}
-                  </div>
-                </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:5,marginBottom:10}}>
-                  <div style={{background:'var(--bg3)',borderRadius:4,padding:'5px 7px'}}><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>ACHAT</div><div style={{fontSize:11,fontFamily:'var(--fc)',color:'#e87060',fontWeight:700}}>{fmtMoney(item.buyPrice)}</div></div>
-                  <div style={{background:'var(--bg3)',borderRadius:4,padding:'5px 7px'}}><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>VENTE</div><div style={{fontSize:11,fontFamily:'var(--fc)',color:'var(--green)',fontWeight:700}}>{fmtMoney(item.sellPrice)}</div></div>
-                  <div style={{background:'var(--bg3)',borderRadius:4,padding:'5px 7px'}}><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>MARGE</div><div style={{fontSize:11,fontFamily:'var(--fc)',color:'var(--gold)',fontWeight:700}}>+{marginPct}%</div></div>
-                </div>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-                  <div><span style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>STOCK </span><span style={{fontSize:17,fontWeight:800,color:(item.stock||0)>0?'var(--txt)':'#e87060'}}>{item.stock||0}</span><span style={{fontSize:9,color:'var(--txtm)'}}> {item.unit}s</span></div>
-                  <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>Rev: {fmtMoney(item.revenue||0)}</div>
-                </div>
-                {item.linkedWarehouseAuto&&item.linkedWarehouseId&&(
-                  <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--green)',marginBottom:6,display:'flex',alignItems:'center',gap:4}}>
-                    <span>🔗</span><span>Sync: {warehouses.find(w=>w.id===item.linkedWarehouseId)?.name||'?'}</span>
-                  </div>
-                )}
-                <div style={{display:'flex',gap:5}}>
-                  {perms.four_buy&&<button className="btn btn-d btn-sm" style={{flex:1}} onClick={()=>{setShowBuy(item);setBuyQty(1);}}>🛒 Acheter</button>}
-                  {perms.four_sell&&(item.stock||0)>0&&<button className="btn btn-g btn-sm" style={{flex:1}} onClick={()=>{setShowSell(item);setSellQty(1);setSellPrice2('');}}>💵 Vendre</button>}
-                  {perms.four_sell&&(item.stock||0)===0&&<button className="btn btn-s btn-sm" style={{flex:1}} disabled>Stock vide</button>}
-                </div>
-              </div>
-            );
-          })}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:10,marginBottom:20}}>
+          {filteredItems.map(item=>(
+            <Etiquette key={item.id} item={item} warehouses={warehouses} storageItems={storageItems} perms={perms}
+              onBuy={it=>{setShowBuy(it);setBuyQty(1);}}
+              onSell={it=>{setShowSell(it);setSellQty(1);setSellPrice2('');}}
+              onEdit={it=>setShowEditItem({...it})}
+              onDel={delItem}
+            />
+          ))}
         </div>
       }
 
@@ -899,29 +1049,27 @@ function Four({currentUser,perms}){
         </div>
       )}
 
-      {/* Modal Trésorerie manuelle — raison obligatoire pour ajout ET retrait */}
+      {/* Modal Trésorerie */}
       {showManualT&&<Modal title={showManualT==='add'?'Ajouter à la Trésorerie':showManualT==='remove'?'Retirer de la Trésorerie':'Définir la Trésorerie'} onClose={()=>setShowManualT(null)} footer={<><button className="btn btn-s" onClick={()=>setShowManualT(null)}>Annuler</button><button className={`btn ${showManualT==='remove'?'btn-d':'btn-p'}`} onClick={doManualTreasury}>Confirmer</button></>}>
         <div style={{background:'var(--bg3)',borderRadius:'var(--r)',padding:'10px 12px',marginBottom:14,display:'flex',gap:20}}>
           <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>ACTUEL</div><div style={{fontSize:15,fontFamily:'var(--fc)',color:'var(--gold)',fontWeight:700}}>{fmtMoney(tAmount)}</div></div>
           {showManualT!=='set'&&manualAmt&&<div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>APRÈS</div><div style={{fontSize:15,fontFamily:'var(--fc)',color:showManualT==='add'?'var(--green)':'#e87060',fontWeight:700}}>{fmtMoney(showManualT==='add'?tAmount+parseInt(manualAmt||0):Math.max(0,tAmount-parseInt(manualAmt||0)))}</div></div>}
         </div>
         <div className="fg"><label className="lbl">MONTANT ($)</label><input type="number" className="inp" value={manualAmt} onChange={e=>setManualAmt(e.target.value)} placeholder="0" autoFocus/></div>
-        {(showManualT==='add'||showManualT==='remove')&&<div className="fg"><label className="lbl">RAISON <span style={{color:'#e87060'}}>*</span></label><input className="inp" value={manualReason} onChange={e=>setManualReason(e.target.value)} placeholder={showManualT==='add'?'Ex: Vente de rue, deal, taxe...':'Ex: Achat de matériel, loyer planque...'}/></div>}
-        {(showManualT==='add'||showManualT==='remove')&&<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>La raison sera enregistrée dans les logs.</div>}
+        {(showManualT==='add'||showManualT==='remove')&&<div className="fg"><label className="lbl">RAISON <span style={{color:'#e87060'}}>*</span></label><input className="inp" value={manualReason} onChange={e=>setManualReason(e.target.value)} placeholder={showManualT==='add'?'Ex: Vente de rue...':'Ex: Achat matériel...'}/></div>}
       </Modal>}
 
       {/* Modal add item */}
       {showAddItem&&<Modal title="Nouveau Produit" onClose={()=>setShowAddItem(false)} footer={<><button className="btn btn-s" onClick={()=>setShowAddItem(false)}>Annuler</button><button className="btn btn-p" onClick={addItem}>Ajouter</button></>} wide>
         <div style={{display:'flex',gap:16}}>
           <div style={{flex:1}}>
-            <div className="fg"><label className="lbl">NOM</label><input className="inp" value={itemForm.name} onChange={e=>setItemForm({...itemForm,name:e.target.value})} placeholder="Ex: Héroïne"/></div>
-            <div className="fg"><label className="lbl">CATÉGORIE</label><select className="sel" value={itemForm.category} onChange={e=>setItemForm({...itemForm,category:e.target.value})}>{FOUR_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
+            <div className="fg"><label className="lbl">NOM</label><input className="inp" value={itemForm.name} onChange={e=>setItemForm({...itemForm,name:e.target.value})} placeholder="Ex: Kit médical"/></div>
+            <div className="fg"><label className="lbl">CATÉGORIE</label><select className="sel" value={itemForm.category} onChange={e=>setItemForm({...itemForm,category:e.target.value})}>{FOUR_CATS_ALL.map(c=><option key={c}>{c}</option>)}</select></div>
             <div className="fg"><label className="lbl">UNITÉ</label><input className="inp" value={itemForm.unit} onChange={e=>setItemForm({...itemForm,unit:e.target.value})} placeholder="sachet, kg, unité..."/></div>
             <div className="g2">
               <div className="fg"><label className="lbl">PRIX ACHAT ($)</label><input type="number" className="inp" value={itemForm.buyPrice} onChange={e=>setItemForm({...itemForm,buyPrice:e.target.value})}/></div>
               <div className="fg"><label className="lbl">PRIX VENTE ($)</label><input type="number" className="inp" value={itemForm.sellPrice} onChange={e=>setItemForm({...itemForm,sellPrice:e.target.value})}/></div>
             </div>
-            {/* FIX #2 : lien entrepôt */}
             <div className="fg">
               <label className="lbl">SYNC STOCKAGE</label>
               <select className="sel" value={itemForm.linkedWarehouseId} onChange={e=>setItemForm({...itemForm,linkedWarehouseId:e.target.value})}>
@@ -938,10 +1086,8 @@ function Four({currentUser,perms}){
           </div>
           <div style={{width:200}}>
             <div style={{display:'flex',justifyContent:'center',marginBottom:12}}>
-              {itemForm.imageUrl
-                ?<img src={itemForm.imageUrl} alt="icon" style={{width:56,height:56,objectFit:'cover',borderRadius:12,border:'1px solid var(--bdr)'}}/>
-                :<div style={{width:56,height:56,borderRadius:12,background:'var(--bg3)',border:'1px dashed var(--bdrb)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',textAlign:'center',padding:4}}>Aucune image</div>
-              }
+              {itemForm.imageUrl?<img src={itemForm.imageUrl} alt="icon" style={{width:56,height:56,objectFit:'cover',borderRadius:12,border:'1px solid var(--bdr)'}}/>
+                :<div style={{width:56,height:56,borderRadius:12,background:'var(--bg3)',border:'1px dashed var(--bdrb)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',textAlign:'center',padding:4}}>Aucune image</div>}
             </div>
             <ItemIconPicker imageUrl={itemForm.imageUrl||''} onChangeImage={u=>setItemForm({...itemForm,imageUrl:u})}/>
           </div>
@@ -954,7 +1100,7 @@ function Four({currentUser,perms}){
         <div style={{display:'flex',gap:16}}>
           <div style={{flex:1}}>
             <div className="fg"><label className="lbl">NOM</label><input className="inp" value={showEditItem.name} onChange={e=>setShowEditItem({...showEditItem,name:e.target.value})}/></div>
-            <div className="fg"><label className="lbl">CATÉGORIE</label><select className="sel" value={showEditItem.category} onChange={e=>setShowEditItem({...showEditItem,category:e.target.value})}>{FOUR_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
+            <div className="fg"><label className="lbl">CATÉGORIE</label><select className="sel" value={showEditItem.category} onChange={e=>setShowEditItem({...showEditItem,category:e.target.value})}>{FOUR_CATS_ALL.map(c=><option key={c}>{c}</option>)}</select></div>
             <div className="fg"><label className="lbl">UNITÉ</label><input className="inp" value={showEditItem.unit} onChange={e=>setShowEditItem({...showEditItem,unit:e.target.value})}/></div>
             <div className="g2">
               <div className="fg"><label className="lbl">PRIX ACHAT ($)</label><input type="number" className="inp" value={showEditItem.buyPrice} onChange={e=>setShowEditItem({...showEditItem,buyPrice:e.target.value})}/></div>
@@ -976,10 +1122,8 @@ function Four({currentUser,perms}){
           </div>
           <div style={{width:200}}>
             <div style={{display:'flex',justifyContent:'center',marginBottom:12}}>
-              {showEditItem.imageUrl
-                ?<img src={showEditItem.imageUrl} alt="icon" style={{width:56,height:56,objectFit:'cover',borderRadius:12,border:'1px solid var(--bdr)'}}/>
-                :<div style={{width:56,height:56,borderRadius:12,background:'var(--bg3)',border:'1px dashed var(--bdrb)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',textAlign:'center',padding:4}}>Aucune image</div>
-              }
+              {showEditItem.imageUrl?<img src={showEditItem.imageUrl} alt="icon" style={{width:56,height:56,objectFit:'cover',borderRadius:12,border:'1px solid var(--bdr)'}}/>
+                :<div style={{width:56,height:56,borderRadius:12,background:'var(--bg3)',border:'1px dashed var(--bdrb)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',textAlign:'center',padding:4}}>Aucune image</div>}
             </div>
             <ItemIconPicker imageUrl={showEditItem.imageUrl||''} onChangeImage={u=>setShowEditItem({...showEditItem,imageUrl:u})}/>
           </div>
@@ -1004,9 +1148,6 @@ function Four({currentUser,perms}){
               <option key={w.id} value={w.id}>{w.name}{w.zone?` (${w.zone})`:''}</option>
             ))}
           </select>
-          {!buyWarehouse&&showBuy.linkedWarehouseId&&showBuy.linkedWarehouseAuto&&(
-            <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--gold)',marginTop:5}}>⚠ Entrepôt auto lié ({warehouses.find(w=>w.id===showBuy.linkedWarehouseId)?.name||'?'}) — sélectionner ci-dessus pour surcharger</div>
-          )}
         </div>
         {buyQty>0&&<div style={{background:tAmount<showBuy.buyPrice*parseInt(buyQty||1)?'var(--redf)':'var(--greenf)',border:`1px solid ${tAmount<showBuy.buyPrice*parseInt(buyQty||1)?'rgba(192,57,43,.3)':'rgba(0,208,132,.3)'}`,borderRadius:'var(--r)',padding:'9px 12px',fontSize:12,fontFamily:'var(--fc)',display:'flex',justifyContent:'space-between'}}>
           <span>Coût total:</span>
@@ -1016,36 +1157,33 @@ function Four({currentUser,perms}){
 
       {/* Modal vente */}
       {showSell&&(()=>{
-        // Trouver les entrepôts qui ont ce produit en stock
         const whsWithStock=[...new Set(items_storage_ref.current.filter(i=>i.name===showSell.name&&i.qty>0).map(i=>i.warehouseId))];
         const defaultWh=whsWithStock.length===1?whsWithStock[0]:'';
-        // Init sellWarehouse si pas encore set et qu'il y a un défaut
         return(
-        <Modal title={`💵 Vendre — ${showSell.name}`} onClose={()=>{setShowSell(null);setSellWarehouse('');}} footer={<><button className="btn btn-s" onClick={()=>{setShowSell(null);setSellWarehouse('');}}>Annuler</button><button className="btn btn-g" onClick={sellItem}>Confirmer la vente</button></>}>
-          <div style={{background:'var(--bg3)',borderRadius:'var(--r)',padding:12,marginBottom:14}}>
-            <div style={{display:'flex',gap:20}}>
-              <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>PRIX SUGGÉRÉ</div><div style={{fontSize:14,fontFamily:'var(--fc)',color:'var(--green)',fontWeight:700}}>{fmtMoney(showSell.sellPrice)}</div></div>
-              <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>STOCK DISPO</div><div style={{fontSize:14,fontFamily:'var(--fc)',color:'var(--txt)',fontWeight:700}}>{showSell.stock||0}</div></div>
+          <Modal title={`💵 Vendre — ${showSell.name}`} onClose={()=>{setShowSell(null);setSellWarehouse('');}} footer={<><button className="btn btn-s" onClick={()=>{setShowSell(null);setSellWarehouse('');}}>Annuler</button><button className="btn btn-g" onClick={sellItem}>Confirmer la vente</button></>}>
+            <div style={{background:'var(--bg3)',borderRadius:'var(--r)',padding:12,marginBottom:14}}>
+              <div style={{display:'flex',gap:20}}>
+                <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>PRIX SUGGÉRÉ</div><div style={{fontSize:14,fontFamily:'var(--fc)',color:'var(--green)',fontWeight:700}}>{fmtMoney(showSell.sellPrice)}</div></div>
+                <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>STOCK DISPO</div><div style={{fontSize:14,fontFamily:'var(--fc)',color:'var(--txt)',fontWeight:700}}>{showSell.stock||0}</div></div>
+              </div>
             </div>
-          </div>
-          <div className="fg"><label className="lbl">QUANTITÉ VENDUE</label><input type="number" className="inp" min="1" max={showSell.stock||0} value={sellQty} onChange={e=>setSellQty(e.target.value)} autoFocus/></div>
-          <div className="fg"><label className="lbl">PRIX RÉEL (vide = prix suggéré)</label><input type="number" className="inp" value={sellPrice2} onChange={e=>setSellPrice2(e.target.value)} placeholder={String(showSell.sellPrice)}/></div>
-          <div className="fg">
-            <label className="lbl">RETIRER DE L'ENTREPÔT</label>
-            <select className="sel" value={sellWarehouse||defaultWh} onChange={e=>setSellWarehouse(e.target.value)}>
-              <option value="">— Ne pas modifier le stockage</option>
-              {warehouses.sort((a,b)=>a.name.localeCompare(b.name)).map(w=>{
-                const stockInWh=items_storage_ref.current.filter(i=>i.name===showSell.name&&i.warehouseId===w.id).reduce((s,i)=>s+i.qty,0);
-                return<option key={w.id} value={w.id}>{w.name}{w.zone?` (${w.zone})`:''}{stockInWh>0?` — ${stockInWh} en stock`:' — vide'}</option>;
-              })}
-            </select>
-            {whsWithStock.length===0&&<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',marginTop:4}}>Aucun stock trouvé dans les entrepôts pour ce produit.</div>}
-            {whsWithStock.length===1&&!sellWarehouse&&<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--green)',marginTop:4}}>✓ Entrepôt automatiquement détecté : {warehouses.find(w=>w.id===defaultWh)?.name}</div>}
-          </div>
-          {sellQty>0&&<div style={{background:'var(--greenf)',border:'1px solid rgba(0,208,132,.3)',borderRadius:'var(--r)',padding:'9px 12px',fontSize:12,fontFamily:'var(--fc)',display:'flex',justifyContent:'space-between'}}>
-            <span>Gain total:</span><span style={{fontWeight:700,color:'var(--green)'}}>{fmtMoney((parseInt(sellPrice2)||showSell.sellPrice)*parseInt(sellQty||1))}</span>
-          </div>}
-        </Modal>
+            <div className="fg"><label className="lbl">QUANTITÉ VENDUE</label><input type="number" className="inp" min="1" max={showSell.stock||0} value={sellQty} onChange={e=>setSellQty(e.target.value)} autoFocus/></div>
+            <div className="fg"><label className="lbl">PRIX RÉEL (vide = prix suggéré)</label><input type="number" className="inp" value={sellPrice2} onChange={e=>setSellPrice2(e.target.value)} placeholder={String(showSell.sellPrice)}/></div>
+            <div className="fg">
+              <label className="lbl">RETIRER DE L'ENTREPÔT</label>
+              <select className="sel" value={sellWarehouse||defaultWh} onChange={e=>setSellWarehouse(e.target.value)}>
+                <option value="">— Ne pas modifier le stockage</option>
+                {warehouses.sort((a,b)=>a.name.localeCompare(b.name)).map(w=>{
+                  const stockInWh=items_storage_ref.current.filter(i=>i.name===showSell.name&&i.warehouseId===w.id).reduce((s,i)=>s+i.qty,0);
+                  return<option key={w.id} value={w.id}>{w.name}{w.zone?` (${w.zone})`:''}{stockInWh>0?` — ${stockInWh} en stock`:' — vide'}</option>;
+                })}
+              </select>
+              {whsWithStock.length===1&&!sellWarehouse&&<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--green)',marginTop:4}}>✓ Entrepôt auto détecté : {warehouses.find(w=>w.id===defaultWh)?.name}</div>}
+            </div>
+            {sellQty>0&&<div style={{background:'var(--greenf)',border:'1px solid rgba(0,208,132,.3)',borderRadius:'var(--r)',padding:'9px 12px',fontSize:12,fontFamily:'var(--fc)',display:'flex',justifyContent:'space-between'}}>
+              <span>Gain total:</span><span style={{fontWeight:700,color:'var(--green)'}}>{fmtMoney((parseInt(sellPrice2)||showSell.sellPrice)*parseInt(sellQty||1))}</span>
+            </div>}
+          </Modal>
         );
       })()}
     </div>
@@ -1073,9 +1211,8 @@ function Chat({currentUser,perms}){
     if(!input.trim()||!perms.chat_write)return;
     const content=input.trim();
     fbAdd('messages',{userId:currentUser.id,pseudo:currentUser.pseudo,content,time:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),avatar:currentUser.avatar,avatarColor:currentUser.avatarColor});
-    // FIX #10 : Chat → Discord webhook
     if(webhookUrl){
-      sendWebhook(webhookUrl,{username:`VMF • ${currentUser.pseudo}`,avatar_url:'',content:`**[${currentUser.grade}] ${currentUser.pseudo}** : ${content}`});
+      sendWebhook(webhookUrl,{username:`VMF • ${currentUser.pseudo}`,content:`**[${currentUser.grade}] ${currentUser.pseudo}** : ${content}`});
     }
     setInput('');
   };
@@ -1211,7 +1348,7 @@ function Logs({currentUser,perms}){
   );
 }
 
-// ─── WEBHOOKS PAGE (FIX #7) ───────────────────────────────────────────────────
+// ─── WEBHOOKS ────────────────────────────────────────────────────────────────
 function Webhooks({currentUser,perms}){
   const[wh,setWh]=useState({});
   const[saved,setSaved]=useState(false);
@@ -1237,7 +1374,7 @@ function Webhooks({currentUser,perms}){
   return(
     <div className="pe">
       <div style={{background:'rgba(88,101,242,.1)',border:'1px solid rgba(88,101,242,.3)',borderRadius:'var(--r)',padding:'10px 14px',fontSize:11,fontFamily:'var(--fc)',color:'#7289da',marginBottom:16}}>
-        🔗 Configurez un webhook Discord par section. Les actions déclencheront un message dans le salon correspondant.
+        🔗 Configurez un webhook Discord par section.
       </div>
       {SECTIONS.map(s=>(
         <div className="wh-section" key={s.key}>
@@ -1253,7 +1390,7 @@ function Webhooks({currentUser,perms}){
       ))}
       <div style={{display:'flex',justifyContent:'flex-end',marginTop:14,gap:8}}>
         {saved&&<span style={{fontSize:11,fontFamily:'var(--fc)',color:'var(--green)',alignSelf:'center'}}>✓ Sauvegardé</span>}
-        <button className="btn btn-p" onClick={save}>💾 Sauvegarder tous les webhooks</button>
+        <button className="btn btn-p" onClick={save}>💾 Sauvegarder</button>
       </div>
     </div>
   );
@@ -1263,14 +1400,26 @@ function Webhooks({currentUser,perms}){
 function Storage({currentUser,perms}){
   const[warehouses,setWarehouses]=useState([]);
   const[items,setItems]=useState([]);
+  const[fourItems,setFourItems]=useState([]);
   const[selWh,setSelWh]=useState(null);
   const[showWh,setShowWh]=useState(false);
   const[showItem,setShowItem]=useState(false);
+  const[editItem,setEditItem]=useState(null);
+  const[editWh,setEditWh]=useState(null);
   const[whForm,setWhForm]=useState({name:'',zone:'',capacity:50});
   const[itemForm,setItemForm]=useState({name:'',category:'Matériel',qty:1,warehouseId:'',note:'',imageUrl:''});
   const[filter,setFilter]=useState('all');
-  useEffect(()=>{const u1=fbLsn('warehouses',setWarehouses);const u2=fbLsn('storage_items',setItems);return()=>{u1();u2();};},[]);
+  const[search,setSearch]=useState('');
+
+  useEffect(()=>{
+    const u1=fbLsn('warehouses',setWarehouses);
+    const u2=fbLsn('storage_items',setItems);
+    const u3=fbLsn('four_items',setFourItems);
+    return()=>{u1();u2();u3();};
+  },[]);
+
   if(!perms.storage_view)return<AccessDenied/>;
+
   const addWh=async()=>{
     if(!whForm.name)return;
     const cols=['#c0392b','#c9a84c','#00d084','#60a5fa','#a78bfa'];
@@ -1278,26 +1427,75 @@ function Storage({currentUser,perms}){
     pushLog('stock',`Entrepôt créé: ${whForm.name}`,'info');
     setShowWh(false);setWhForm({name:'',zone:'',capacity:50});
   };
+
+  const saveEditWh=async()=>{
+    if(!editWh)return;
+    const{id,...d}=editWh;
+    await fbSet('warehouses',id,{name:d.name,zone:d.zone,capacity:Number(d.capacity)||50});
+    setEditWh(null);
+  };
+
   const delWh=async id=>{
     await fbDel('warehouses',id);
     for(const i of items.filter(x=>x.warehouseId===id))await fbDel('storage_items',i.id);
     if(selWh===id)setSelWh(null);
   };
+
   const addItem=async()=>{
     if(!itemForm.name||!itemForm.warehouseId)return;
     await fbAdd('storage_items',{...itemForm,qty:Number(itemForm.qty)||1,addedBy:currentUser.pseudo,date:fmtDate()});
+    // Sync four : si un produit du four porte le même nom, on met à jour son stock
+    const fourMatch=fourItems.find(fi=>fi.name.toLowerCase()===itemForm.name.toLowerCase());
+    if(fourMatch){
+      await fbSet('four_items',fourMatch.id,{stock:(fourMatch.stock||0)+Number(itemForm.qty||1)});
+      pushLog('stock',`Sync Four: +${itemForm.qty}x ${itemForm.name} depuis stockage`,'info');
+    }
     pushLog('stock',`Objet ajouté: ${itemForm.qty}x ${itemForm.name}`,'info');
     setShowItem(false);setItemForm({name:'',category:'Matériel',qty:1,warehouseId:'',note:'',imageUrl:''});
   };
-  const delItem=async id=>{await fbDel('storage_items',id);};
+
+  const saveEditItem=async()=>{
+    if(!editItem)return;
+    const oldItem=items.find(i=>i.id===editItem.id);
+    const{id,...d}=editItem;
+    const newQty=Number(d.qty)||0;
+    await fbSet('storage_items',id,{name:d.name,category:d.category,qty:newQty,note:d.note||'',imageUrl:d.imageUrl||''});
+    // Sync four si même nom
+    if(oldItem){
+      const diff=newQty-(oldItem.qty||0);
+      if(diff!==0){
+        const fourMatch=fourItems.find(fi=>fi.name.toLowerCase()===oldItem.name.toLowerCase());
+        if(fourMatch){
+          const newStock=Math.max(0,(fourMatch.stock||0)+diff);
+          await fbSet('four_items',fourMatch.id,{stock:newStock});
+        }
+      }
+    }
+    setEditItem(null);
+  };
+
+  const delItem=async id=>{
+    const item=items.find(i=>i.id===id);
+    await fbDel('storage_items',id);
+    // Sync four à la suppression
+    if(item){
+      const fourMatch=fourItems.find(fi=>fi.name.toLowerCase()===item.name.toLowerCase());
+      if(fourMatch){
+        const newStock=Math.max(0,(fourMatch.stock||0)-item.qty);
+        await fbSet('four_items',fourMatch.id,{stock:newStock});
+      }
+    }
+  };
+
   const whUsage=id=>items.filter(i=>i.warehouseId===id).reduce((s,i)=>s+i.qty,0);
-  // FIX #5 tri alphabétique
   const sortedWarehouses=[...warehouses].sort((a,b)=>a.name.localeCompare(b.name));
   const visible=items.filter(i=>{
     if(selWh&&i.warehouseId!==selWh)return false;
     if(filter!=='all'&&i.category!==filter)return false;
+    if(search&&!i.name.toLowerCase().includes(search.toLowerCase()))return false;
     return true;
   }).sort((a,b)=>a.name.localeCompare(b.name));
+
   return(
     <div className="pe">
       <div className="sgrid" style={{marginBottom:14}}>
@@ -1305,6 +1503,7 @@ function Storage({currentUser,perms}){
         <div className="sc gd"><div className="sl">Références</div><div className="sv">{items.length}</div><div className="ss">{items.reduce((s,i)=>s+i.qty,0)} unités</div><span className="si">📦</span></div>
       </div>
       <div className="g2">
+        {/* Entrepôts */}
         <div className="card">
           <div className="ch"><span className="ct">🏭 Entrepôts</span>{perms.storage_manage&&<button className="btn btn-p btn-sm" style={{marginLeft:'auto'}} onClick={()=>setShowWh(true)}>+</button>}</div>
           {sortedWarehouses.length===0?<div style={{padding:20,textAlign:'center',color:'var(--txtm)',fontSize:12}}>Aucun entrepôt</div>:
@@ -1317,15 +1516,24 @@ function Storage({currentUser,perms}){
                   <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>{w.zone} • {whUsage(w.id)}/{w.capacity}</div>
                   <div className="pb" style={{marginTop:3}}><div className="pf" style={{width:`${Math.min(100,Math.round(whUsage(w.id)/w.capacity*100))}%`,background:w.color}}></div></div>
                 </div>
-                {perms.storage_manage&&currentUser.grade==='Heritier'&&<button className="btn btn-d btn-sm" onClick={e=>{e.stopPropagation();delWh(w.id);}}>🗑</button>}
+                <div style={{display:'flex',gap:4}} onClick={e=>e.stopPropagation()}>
+                  {perms.storage_manage&&<button className="btn btn-s btn-sm" onClick={()=>setEditWh({...w})}>✏</button>}
+                  {perms.storage_manage&&currentUser.grade==='Heritier'&&<button className="btn btn-d btn-sm" onClick={()=>delWh(w.id)}>🗑</button>}
+                </div>
               </div>
             ))
           }
         </div>
+        {/* Inventaire */}
         <div className="card">
           <div className="ch"><span className="ct">📦 Inventaire</span>{perms.storage_manage&&<button className="btn btn-p btn-sm" style={{marginLeft:'auto'}} onClick={()=>setShowItem(true)}>+</button>}</div>
-          <div style={{padding:'6px 12px',borderBottom:'1px solid var(--bdr)',display:'flex',gap:4,flexWrap:'wrap'}}>
-            {['all',...ITEM_CATS].map(c=><button key={c} className={`btn btn-sm ${filter===c?'btn-p':'btn-s'}`} onClick={()=>setFilter(c)} style={{fontSize:10}}>{c==='all'?'Tout':c}</button>)}
+          <div style={{padding:'6px 12px',borderBottom:'1px solid var(--bdr)',display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+            <div style={{display:'flex',gap:3,flexWrap:'wrap',flex:1}}>
+              {['all',...ITEM_CATS].map(c=><button key={c} className={`btn btn-sm ${filter===c?'btn-p':'btn-s'}`} onClick={()=>setFilter(c)} style={{fontSize:10}}>{c==='all'?'Tout':c}</button>)}
+            </div>
+          </div>
+          <div style={{padding:'6px 12px',borderBottom:'1px solid var(--bdr)'}}>
+            <input className="searchbar" style={{width:'100%'}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Rechercher..."/>
           </div>
           <div style={{maxHeight:360,overflowY:'auto'}}>
             {visible.length===0?<div style={{padding:20,textAlign:'center',color:'var(--txtm)',fontSize:12}}>Aucun objet</div>:
@@ -1334,14 +1542,17 @@ function Storage({currentUser,perms}){
                 {visible.map(i=>(
                   <tr key={i.id}>
                     <td><div style={{display:'flex',alignItems:'center',gap:7}}>
-                    <div style={{width:28,height:28,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0,overflow:'hidden',border:'1px solid var(--bdr)'}}>
-                      {i.imageUrl?<img src={i.imageUrl} alt={i.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontSize:12,color:'var(--txtm)'}}>?</span>}
-                    </div>
+                      <div style={{width:28,height:28,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0,overflow:'hidden',border:'1px solid var(--bdr)'}}>
+                        {i.imageUrl?<img src={i.imageUrl} alt={i.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontSize:12,color:'var(--txtm)'}}>?</span>}
+                      </div>
                       <div><div style={{fontSize:11,color:'var(--txt)',fontWeight:600}}>{i.name}</div><div style={{fontSize:9,color:'var(--txtm)',fontFamily:'var(--fc)'}}>{i.category}</div></div>
                     </div></td>
                     <td style={{fontFamily:'var(--fc)',fontWeight:700}}>{i.qty}</td>
                     <td style={{fontSize:10,color:'var(--txtm)',fontFamily:'var(--fc)'}}>{i.addedBy}</td>
-                    <td>{perms.storage_manage&&<button className="btn btn-d btn-sm" onClick={()=>delItem(i.id)}>🗑</button>}</td>
+                    <td><div style={{display:'flex',gap:3}}>
+                      {perms.storage_manage&&<button className="btn btn-s btn-sm" onClick={()=>setEditItem({...i})}>✏</button>}
+                      {perms.storage_manage&&<button className="btn btn-d btn-sm" onClick={()=>delItem(i.id)}>🗑</button>}
+                    </div></td>
                   </tr>
                 ))}
               </tbody></table>
@@ -1349,36 +1560,60 @@ function Storage({currentUser,perms}){
           </div>
         </div>
       </div>
+
+      {/* Modal add warehouse */}
       {showWh&&<Modal title="Nouvel Entrepôt" onClose={()=>setShowWh(false)} footer={<><button className="btn btn-s" onClick={()=>setShowWh(false)}>Annuler</button><button className="btn btn-p" onClick={addWh}>Créer</button></>}>
         <div className="fg"><label className="lbl">NOM</label><input className="inp" value={whForm.name} onChange={e=>setWhForm({...whForm,name:e.target.value})} autoFocus/></div>
         <div className="fg"><label className="lbl">ZONE</label><input className="inp" value={whForm.zone} onChange={e=>setWhForm({...whForm,zone:e.target.value})} placeholder="La Mesa"/></div>
         <div className="fg"><label className="lbl">CAPACITÉ</label><input type="number" className="inp" value={whForm.capacity} onChange={e=>setWhForm({...whForm,capacity:e.target.value})}/></div>
       </Modal>}
+
+      {/* Modal edit warehouse */}
+      {editWh&&<Modal title={`Modifier — ${editWh.name}`} onClose={()=>setEditWh(null)} footer={<><button className="btn btn-s" onClick={()=>setEditWh(null)}>Annuler</button><button className="btn btn-p" onClick={saveEditWh}>Sauvegarder</button></>}>
+        <div className="fg"><label className="lbl">NOM</label><input className="inp" value={editWh.name} onChange={e=>setEditWh({...editWh,name:e.target.value})} autoFocus/></div>
+        <div className="fg"><label className="lbl">ZONE</label><input className="inp" value={editWh.zone||''} onChange={e=>setEditWh({...editWh,zone:e.target.value})}/></div>
+        <div className="fg"><label className="lbl">CAPACITÉ</label><input type="number" className="inp" value={editWh.capacity} onChange={e=>setEditWh({...editWh,capacity:e.target.value})}/></div>
+      </Modal>}
+
+      {/* Modal add item */}
       {showItem&&<Modal title="Ajouter un Objet" onClose={()=>setShowItem(false)} footer={<><button className="btn btn-s" onClick={()=>setShowItem(false)}>Annuler</button><button className="btn btn-p" onClick={addItem}>Enregistrer</button></>} wide>
         <div style={{display:'flex',gap:16}}>
           <div style={{flex:1}}>
             <div className="fg"><label className="lbl">ENTREPÔT</label><select className="sel" value={itemForm.warehouseId} onChange={e=>setItemForm({...itemForm,warehouseId:e.target.value})}><option value="">Sélectionner...</option>{sortedWarehouses.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
             <div className="fg"><label className="lbl">OBJET</label><input className="inp" value={itemForm.name} onChange={e=>setItemForm({...itemForm,name:e.target.value})} autoFocus/></div>
+            <div style={{background:'var(--greenf)',border:'1px solid rgba(0,208,132,.2)',borderRadius:'var(--r)',padding:'7px 10px',fontSize:10,fontFamily:'var(--fc)',color:'var(--green)',marginBottom:10}}>
+              💡 Si le nom correspond à un produit du Four, le stock sera synchronisé automatiquement.
+            </div>
             <div className="fg"><label className="lbl">CATÉGORIE</label><select className="sel" value={itemForm.category} onChange={e=>setItemForm({...itemForm,category:e.target.value})}>{ITEM_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
             <div className="fg"><label className="lbl">QUANTITÉ</label><input type="number" className="inp" min="1" value={itemForm.qty} onChange={e=>setItemForm({...itemForm,qty:e.target.value})}/></div>
             <div className="fg"><label className="lbl">NOTE</label><input className="inp" value={itemForm.note} onChange={e=>setItemForm({...itemForm,note:e.target.value})}/></div>
           </div>
           <div style={{width:200}}>
             <div style={{display:'flex',justifyContent:'center',marginBottom:12}}>
-              {itemForm.imageUrl
-                ?<img src={itemForm.imageUrl} alt="icon" style={{width:52,height:52,objectFit:'cover',borderRadius:10,border:'1px solid var(--bdr)'}}/>
-                :<div style={{width:52,height:52,borderRadius:10,background:'var(--bg3)',border:'1px dashed var(--bdrb)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',textAlign:'center',padding:4}}>Aucune image</div>
-              }
+              {itemForm.imageUrl?<img src={itemForm.imageUrl} alt="icon" style={{width:52,height:52,objectFit:'cover',borderRadius:10,border:'1px solid var(--bdr)'}}/>
+                :<div style={{width:52,height:52,borderRadius:10,background:'var(--bg3)',border:'1px dashed var(--bdrb)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',textAlign:'center',padding:4}}>Aucune image</div>}
             </div>
             <ItemIconPicker imageUrl={itemForm.imageUrl||''} onChangeImage={u=>setItemForm({...itemForm,imageUrl:u})}/>
           </div>
         </div>
       </Modal>}
+
+      {/* Modal edit item */}
+      {editItem&&<Modal title={`Modifier — ${editItem.name}`} onClose={()=>setEditItem(null)} footer={<><button className="btn btn-s" onClick={()=>setEditItem(null)}>Annuler</button><button className="btn btn-p" onClick={saveEditItem}>Sauvegarder</button></>}>
+        <div className="fg"><label className="lbl">NOM</label><input className="inp" value={editItem.name} onChange={e=>setEditItem({...editItem,name:e.target.value})}/></div>
+        <div className="fg"><label className="lbl">CATÉGORIE</label><select className="sel" value={editItem.category} onChange={e=>setEditItem({...editItem,category:e.target.value})}>{ITEM_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
+        <div className="fg"><label className="lbl">QUANTITÉ</label><input type="number" className="inp" min="0" value={editItem.qty} onChange={e=>setEditItem({...editItem,qty:e.target.value})}/></div>
+        <div style={{background:'var(--goldf)',border:'1px solid rgba(201,168,76,.2)',borderRadius:'var(--r)',padding:'7px 10px',fontSize:10,fontFamily:'var(--fc)',color:'var(--gold)',marginBottom:10}}>
+          ⚠ Modifier la quantité met à jour le stock du Four si le produit correspond.
+        </div>
+        <div className="fg"><label className="lbl">NOTE</label><input className="inp" value={editItem.note||''} onChange={e=>setEditItem({...editItem,note:e.target.value})}/></div>
+        <div className="fg"><label className="lbl">IMAGE</label><input className="inp" value={editItem.imageUrl||''} onChange={e=>setEditItem({...editItem,imageUrl:e.target.value})} placeholder="https://..."/></div>
+      </Modal>}
     </div>
   );
 }
 
-// ─── PERMISSIONS (FIX #6 Héritier force all true) ─────────────────────────────
+// ─── PERMISSIONS ─────────────────────────────────────────────────────────────
 function Permissions({currentUser}){
   const[fbPermsData,setFbPermsData]=useState(null);
   const[members,setMembers]=useState([]);
@@ -1394,10 +1629,9 @@ function Permissions({currentUser}){
     return()=>{u1();u2();u3();u4();};
   },[]);
   if(currentUser.grade!=='Heritier')return<AccessDenied/>;
-  // FIX #6 : l'Héritier dans Firestore a tout à true — on ne lit jamais une valeur false pour Heritier
   const eff={...DEFAULT_PERMS,...(fbPermsData||{}),Heritier:ALL_TRUE};
   const toggleGrade=async(grade,perm)=>{
-    if(grade==='Heritier')return; // l'Héritier ne peut pas être restreint
+    if(grade==='Heritier')return;
     const updated={...eff,[grade]:{...eff[grade],[perm]:!eff[grade]?.[perm]}};
     await fbSet('permissions','config',{...updated,Heritier:ALL_TRUE});
     pushLog('modification',`Perm grade "${perm}" pour ${grade} modifiée`,'warn');
@@ -1489,7 +1723,7 @@ function Permissions({currentUser}){
                   <span style={{color:'var(--txtm)',fontFamily:'var(--fc)',fontSize:10}}>— {mem.grade}</span>
                   {hasOv(selMember)&&<button className="btn btn-s btn-sm" onClick={()=>resetMember(selMember)}>↺ Reset</button>}
                 </div>
-                <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)',marginBottom:10}}>🟡 = override individuel actif (remplace le grade)</div>
+                <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)',marginBottom:10}}>🟡 = override individuel actif</div>
                 {cats.map(cat=>{
                   const catPerms=Object.entries(ALL_PERMS).filter(([,v])=>v.cat===cat);
                   return(
@@ -1570,7 +1804,7 @@ function AccountManager({currentUser}){
   );
 }
 
-// ─── PROFILE (FIX #9) ────────────────────────────────────────────────────────
+// ─── PROFILE ─────────────────────────────────────────────────────────────────
 function Profile({currentUser,setCurrentUser}){
   const[accounts,setAccounts]=useState([]);
   const[pseudo,setPseudo]=useState(currentUser.pseudo);
@@ -1598,80 +1832,60 @@ function Profile({currentUser,setCurrentUser}){
     if(!pseudo.trim()){notify('Le pseudo ne peut pas être vide',true);return;}
     const updated={...currentUser,pseudo,avatar,avatarColor,avatarImage:avatarImage||'',discordUsername:discord};
     await fbSet('members',currentUser.id,{pseudo,avatar,avatarColor,avatarImage:avatarImage||'',discordUsername:discord});
-    saveSession(updated);
-    setCurrentUser(updated);
+    saveSession(updated);setCurrentUser(updated);
     notify('✓ Profil sauvegardé');
   };
   const changePwd=async()=>{
     if(!myAccount){notify('Compte introuvable',true);return;}
     if(myAccount.password!==oldPwd){notify('Mot de passe actuel incorrect',true);return;}
-    if(newPwd.length<4){notify('Nouveau mot de passe trop court (min 4 car.)',true);return;}
+    if(newPwd.length<4){notify('Nouveau mot de passe trop court',true);return;}
     if(newPwd!==newPwd2){notify('Les mots de passe ne correspondent pas',true);return;}
     await fbSet('accounts',currentUser.accountId,{password:newPwd});
     pushLog('modification',`${currentUser.pseudo} a changé son mot de passe`,'info');
     setOldPwd('');setNewPwd('');setNewPwd2('');
     notify('✓ Mot de passe modifié');
   };
-  const profilePicDisplay=avatarImage
-    ?<img src={avatarImage} alt="avatar" style={{width:70,height:70,borderRadius:'50%',objectFit:'cover',border:'2px solid var(--bdrb)'}} onError={()=>setAvatarImage('')}/>
-    :<div className="avatar-big" style={{background:avatarColor,fontSize:30,width:70,height:70}}>{avatar}</div>;
   return(
     <div className="pe">
       <div className="profile-card">
         <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:24}}>
-          {profilePicDisplay}
+          {avatarImage?<img src={avatarImage} alt="avatar" style={{width:70,height:70,borderRadius:'50%',objectFit:'cover',border:'2px solid var(--bdrb)'}} onError={()=>setAvatarImage('')}/>
+            :<div className="avatar-big" style={{background:avatarColor,fontSize:30,width:70,height:70}}>{avatar}</div>}
           <div>
             <div style={{fontSize:16,fontWeight:800,color:'var(--txt)'}}>{currentUser.pseudo}</div>
             <span className={gradeClass(currentUser.grade)} style={{fontSize:12,fontFamily:'var(--fc)'}}>{currentUser.grade}</span>
           </div>
         </div>
-
         <div style={{borderBottom:'1px solid var(--bdr)',marginBottom:18,paddingBottom:18}}>
-          <div style={{fontSize:11,fontWeight:700,color:'var(--txt)',marginBottom:12,letterSpacing:'.06em'}}>PHOTO DE PROFIL</div>
-          {/* Drag & drop zone */}
-          <div
-            onDragOver={e=>{e.preventDefault();setDragging(true);}}
-            onDragLeave={()=>setDragging(false)}
-            onDrop={handleDrop}
-            style={{border:`2px dashed ${dragging?'var(--acc)':'var(--bdrb)'}`,borderRadius:'var(--r)',padding:16,textAlign:'center',marginBottom:10,background:dragging?'var(--accf)':'var(--bg3)',transition:'var(--tr)',cursor:'default'}}
-          >
-            {avatarImage
-              ?<img src={avatarImage} alt="preview" style={{width:64,height:64,borderRadius:'50%',objectFit:'cover',border:'2px solid var(--bdrb)'}} onError={()=>applyImage('')}/>
-              :<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>Glisser une image ici</div>
-            }
+          <div style={{fontSize:11,fontWeight:700,color:'var(--txt)',marginBottom:12}}>PHOTO DE PROFIL</div>
+          <div onDragOver={e=>{e.preventDefault();setDragging(true);}} onDragLeave={()=>setDragging(false)} onDrop={handleDrop}
+            style={{border:`2px dashed ${dragging?'var(--acc)':'var(--bdrb)'}`,borderRadius:'var(--r)',padding:16,textAlign:'center',marginBottom:10,background:dragging?'var(--accf)':'var(--bg3)',transition:'var(--tr)',cursor:'default'}}>
+            {avatarImage?<img src={avatarImage} alt="preview" style={{width:64,height:64,borderRadius:'50%',objectFit:'cover',border:'2px solid var(--bdrb)'}} onError={()=>applyImage('')}/>
+              :<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>Glisser une image ici</div>}
           </div>
           <div className="fg">
-            <label className="lbl">OU COLLER UN LIEN IMAGE</label>
+            <label className="lbl">LIEN IMAGE</label>
             <div style={{display:'flex',gap:6}}>
               <input className="inp" value={imgUrl} onChange={e=>setImgUrl(e.target.value)} placeholder="https://...image.png"/>
               <button className="btn btn-s btn-sm" onClick={()=>applyImage(imgUrl)}>OK</button>
             </div>
           </div>
-          {avatarImage&&<button className="btn btn-d btn-sm" style={{fontSize:10,marginBottom:8}} onClick={()=>applyImage('')}>✕ Retirer la photo</button>}
-          <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',marginBottom:8}}>Si aucune photo, l'avatar emoji ci-dessous sera utilisé.</div>
-          <div style={{fontSize:11,fontWeight:700,color:'var(--txt)',marginBottom:8,letterSpacing:'.06em'}}>AVATAR EMOJI (fallback)</div>
+          {avatarImage&&<button className="btn btn-d btn-sm" style={{fontSize:10,marginBottom:8}} onClick={()=>applyImage('')}>✕ Retirer</button>}
           <AvatarPicker emoji={avatar} color={avatarColor} onChangeEmoji={setAvatar} onChangeColor={setAvatarColor}/>
         </div>
-
         <div style={{borderBottom:'1px solid var(--bdr)',marginBottom:18,paddingBottom:18}}>
-          <div style={{fontSize:11,fontWeight:700,color:'var(--txt)',marginBottom:12,letterSpacing:'.06em'}}>INFORMATIONS</div>
+          <div style={{fontSize:11,fontWeight:700,color:'var(--txt)',marginBottom:12}}>INFORMATIONS</div>
           <div className="fg"><label className="lbl">PSEUDO RP</label><input className="inp" value={pseudo} onChange={e=>setPseudo(e.target.value)}/></div>
-          <div className="fg">
-            <label className="lbl">DISCORD USERNAME</label>
-            <input className="inp" value={discord} onChange={e=>setDiscord(e.target.value)} placeholder="Ex: shadow#1234 ou shadow"/>
-            <div style={{fontSize:10,color:'var(--txtm)',fontFamily:'var(--fc)',marginTop:4}}>Affiché dans le profil. Les messages chat incluront votre tag Discord.</div>
-          </div>
-          <button className="btn btn-p" onClick={saveProfile}>💾 Sauvegarder le profil</button>
+          <div className="fg"><label className="lbl">DISCORD</label><input className="inp" value={discord} onChange={e=>setDiscord(e.target.value)} placeholder="Ex: shadow#1234"/></div>
+          <button className="btn btn-p" onClick={saveProfile}>💾 Sauvegarder</button>
         </div>
-
         <div>
-          <div style={{fontSize:11,fontWeight:700,color:'var(--txt)',marginBottom:12,letterSpacing:'.06em'}}>CHANGER LE MOT DE PASSE</div>
-          <div className="fg"><label className="lbl">MOT DE PASSE ACTUEL</label><input type="password" className="inp" value={oldPwd} onChange={e=>setOldPwd(e.target.value)}/></div>
-          <div className="fg"><label className="lbl">NOUVEAU MOT DE PASSE</label><input type="password" className="inp" value={newPwd} onChange={e=>setNewPwd(e.target.value)}/></div>
+          <div style={{fontSize:11,fontWeight:700,color:'var(--txt)',marginBottom:12}}>CHANGER LE MOT DE PASSE</div>
+          <div className="fg"><label className="lbl">ACTUEL</label><input type="password" className="inp" value={oldPwd} onChange={e=>setOldPwd(e.target.value)}/></div>
+          <div className="fg"><label className="lbl">NOUVEAU</label><input type="password" className="inp" value={newPwd} onChange={e=>setNewPwd(e.target.value)}/></div>
           <div className="fg"><label className="lbl">CONFIRMER</label><input type="password" className="inp" value={newPwd2} onChange={e=>setNewPwd2(e.target.value)}/></div>
-          <button className="btn btn-s" onClick={changePwd}>🔒 Changer le mot de passe</button>
+          <button className="btn btn-s" onClick={changePwd}>🔒 Changer</button>
         </div>
-
         {msg&&<div style={{marginTop:14,background:'var(--greenf)',border:'1px solid rgba(0,208,132,.3)',borderRadius:'var(--r)',padding:'8px 12px',fontSize:11,color:'var(--green)',fontFamily:'var(--fc)'}}>{msg}</div>}
         {err&&<div style={{marginTop:14,background:'var(--redf)',border:'1px solid rgba(192,57,43,.3)',borderRadius:'var(--r)',padding:'8px 12px',fontSize:11,color:'#e87060',fontFamily:'var(--fc)'}}>{err}</div>}
       </div>
@@ -1697,8 +1911,7 @@ function LoginScreen({onLogin}){
         const member=members.find(m=>m.id===account.memberId);
         if(member){
           await setPresenceF(account.id,member.id,true);
-          // Charger les webhooks
-          try{const{doc,getDoc}=window.fsLib||{};if(!doc||!getDoc){const ws=await(await fetch('https://firestore.googleapis.com/v1/projects/vmf-mdt/databases/(default)/documents/settings/webhooks')).json();if(ws.fields)window._setWebhooks(Object.fromEntries(Object.entries(ws.fields).map(([k,v])=>[k,v.stringValue||''])));}else{const wsnap=await getDoc(doc(window.db,'settings','webhooks'));if(wsnap.exists())window._setWebhooks(wsnap.data());}}catch(e){}
+          try{const wsnap=await window.fsLib.getDoc?.(window.fsLib.doc?.(window.db,'settings','webhooks'));if(wsnap?.exists())window._setWebhooks(wsnap.data());}catch(e){}
           pushLog('connexion',`${member.pseudo} connecté`,'info','connexions');
           onLogin({...member,accountId:account.id});
         }else{setError('Membre introuvable.');}
@@ -1714,7 +1927,7 @@ function LoginScreen({onLogin}){
         <div style={{textAlign:'center',marginBottom:28}}>
           <div style={{width:48,height:48,margin:'0 auto 10px',background:'var(--acc)',clipPath:'polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,fontWeight:800,color:'#0e0e10',fontFamily:'var(--fc)'}}>V</div>
           <div style={{fontSize:19,fontWeight:800,letterSpacing:'.12em'}}>VMF</div>
-          <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)',letterSpacing:'.18em',marginTop:3}}>RÉSEAU PRIVÉ // v5.0.0</div>
+          <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)',letterSpacing:'.18em',marginTop:3}}>RÉSEAU PRIVÉ // v5.1.0</div>
         </div>
         <div style={{background:'var(--accf)',border:'1px solid rgba(200,202,212,.2)',borderRadius:'var(--r)',padding:'9px 11px',fontSize:10,fontFamily:'var(--fc)',color:'var(--acc)',marginBottom:16,display:'flex',alignItems:'center',gap:7}}>
           <span>⚠</span><span>ACCÈS RÉSERVÉ — Toute tentative sera enregistrée.</span>
@@ -1734,7 +1947,9 @@ function LoginScreen({onLogin}){
 }
 
 // ─── NAV ─────────────────────────────────────────────────────────────────────
-const NAV=[
+const PAGE_NAMES={dashboard:'Dashboard',members:'Membres',weapons:'Armes',debts:'Dettes',vehicles:'Véhicules',chat:'Messagerie',map:'Carte',announcements:'Annonces',logs:'Logs',permissions:'Permissions',accounts:'Comptes',storage:'Stockage',four:'Four — Économie',webhooks:'Webhooks Discord',profile:'Mon Profil',flappy:'🐦 Flappy VMF'};
+
+const NAV_BASE=[
   {section:'Général',items:[
     {id:'dashboard',ic:'⬡',label:'Dashboard'},
     {id:'announcements',ic:'📢',label:'Annonces'},
@@ -1758,26 +1973,17 @@ const NAV=[
     {id:'accounts',ic:'🔑',label:'Comptes'},
   ]},
 ];
-const PAGE_NAMES={dashboard:'Dashboard',members:'Membres',weapons:'Armes',debts:'Dettes',vehicles:'Véhicules',chat:'Messagerie',map:'Carte',announcements:'Annonces',logs:'Logs',permissions:'Permissions',accounts:'Comptes',storage:'Stockage',four:'Four — Économie',webhooks:'Webhooks Discord',profile:'Mon Profil'};
 
-// ─── APP ─────────────────────────────────────────────────────────────────────
+// ─── SESSION ─────────────────────────────────────────────────────────────────
 const SESSION_KEY='vmf_session';
-const SESSION_TTL=8*60*60*1000; // 8 heures
-
-function saveSession(user){
-  try{sessionStorage.setItem(SESSION_KEY,JSON.stringify({user,ts:Date.now()}));}catch(e){}
-}
+const SESSION_TTL=8*60*60*1000;
+function saveSession(user){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify({user,ts:Date.now()}));}catch(e){}}
 function loadSession(){
-  try{
-    const raw=sessionStorage.getItem(SESSION_KEY);
-    if(!raw)return null;
-    const{user,ts}=JSON.parse(raw);
-    if(Date.now()-ts>SESSION_TTL){sessionStorage.removeItem(SESSION_KEY);return null;}
-    return user;
-  }catch(e){return null;}
+  try{const raw=sessionStorage.getItem(SESSION_KEY);if(!raw)return null;const{user,ts}=JSON.parse(raw);if(Date.now()-ts>SESSION_TTL){sessionStorage.removeItem(SESSION_KEY);return null;}return user;}catch(e){return null;}
 }
 function clearSession(){try{sessionStorage.removeItem(SESSION_KEY);}catch(e){}}
 
+// ─── APP ─────────────────────────────────────────────────────────────────────
 function App(){
   const[currentUser,setCurrentUser]=useState(()=>loadSession());
   const[page,setPage]=useState('dashboard');
@@ -1794,7 +2000,6 @@ function App(){
     return()=>{u1();u2();u3();clearInterval(interval);window.removeEventListener('beforeunload',onUnload);};
   },[currentUser]);
 
-  // FIX #6 : Héritier a toujours ALL_TRUE
   const perms=useMemo(()=>{
     if(!currentUser)return{};
     if(currentUser.grade==='Heritier')return ALL_TRUE;
@@ -1806,17 +2011,22 @@ function App(){
 
   const logout=async()=>{
     if(currentUser){await setPresenceF(currentUser.accountId,currentUser.id,false);pushLog('connexion',`${currentUser.pseudo} déconnecté`,'info','connexions');}
-    clearSession();
-    setCurrentUser(null);
+    clearSession();setCurrentUser(null);
   };
 
-  // Sync session when currentUser changes
-  useEffect(()=>{
-    if(currentUser)saveSession(currentUser);
-  },[currentUser]);
+  useEffect(()=>{if(currentUser)saveSession(currentUser);},[currentUser]);
 
   if(!currentUser)return<LoginScreen onLogin={u=>{saveSession(u);setCurrentUser(u);}}/>;
+
   const grBadge=g=>({Heritier:'bdg-r',Regent:'bdg-gd',Senechaux:'bdg-g',Syndic:'bdg-b',Collaborateur:'bdg-gr'}[g]||'bdg-gr');
+
+  // Nav avec Flappy selon perms
+  const nav=useMemo(()=>{
+    if(!perms.flappy_access)return NAV_BASE;
+    const copy=NAV_BASE.map(s=>({...s,items:[...s.items]}));
+    copy[copy.length-1].items.push({id:'flappy',ic:'🐦',label:'Flappy Bird'});
+    return copy;
+  },[perms]);
 
   const renderPage=()=>{
     switch(page){
@@ -1835,6 +2045,7 @@ function App(){
       case 'four':return<Four currentUser={currentUser} perms={perms}/>;
       case 'webhooks':return<Webhooks currentUser={currentUser} perms={perms}/>;
       case 'profile':return<Profile currentUser={currentUser} setCurrentUser={setCurrentUser}/>;
+      case 'flappy':return perms.flappy_access?<FlappyBird/>:<AccessDenied/>;
       default:return<Dashboard currentUser={currentUser}/>;
     }
   };
@@ -1848,7 +2059,6 @@ function App(){
             <div><div style={{fontSize:15,fontWeight:800,letterSpacing:'.1em',color:'var(--txt)'}}>VMF</div><div style={{fontSize:8,fontFamily:'var(--fc)',color:'var(--txtm)',letterSpacing:'.18em'}}>réseau privé</div></div>
           </div>
         </div>
-        {/* FIX #9 : clic sur avatar → profil */}
         <div className="suser" onClick={()=>setPage('profile')} title="Mon profil">
           <div style={{display:'flex',alignItems:'center',gap:7}}>
             <div style={{width:28,height:28,borderRadius:'50%',background:currentUser.avatarColor||gradeColor(currentUser.grade),display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0,overflow:'hidden'}}>
@@ -1862,7 +2072,7 @@ function App(){
           </div>
         </div>
         <nav className="snav">
-          {NAV.map(s=>(
+          {nav.map(s=>(
             <div key={s.section}>
               <div className="nav-lbl">{s.section}</div>
               {s.items.map(item=>(
