@@ -336,7 +336,7 @@ function FlappyBird(){
     bird:{y:150,vy:0},pipes:[],score:0,best:0,frame:0,status:'idle'
   });
   const rafRef=useRef(null);
-  const W=420,H=620,GAP=150,PIPE_W=52,SPEED=2.2,GRAV=0.11,JUMP=-4.5;
+  const W=320,H=480,GAP=130,PIPE_W=44,SPEED=2.2,GRAV=0.38,JUMP=-7;
 
   const resetPipes=()=>[
     {x:W+60,top:80+Math.random()*(H-GAP-120)},
@@ -400,7 +400,6 @@ function FlappyBird(){
     const s=stateRef.current;
     if(s.status!=='playing'){draw();return;}
     s.bird.vy+=GRAV;
-    s.bird.vy = Mathmin(s.bird.vy, 4.5);
     s.bird.y+=s.bird.vy;
     s.frame++;
     // move pipes
