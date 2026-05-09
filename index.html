@@ -1352,8 +1352,6 @@ function MapPage({perms}){
     {label:'🏜 Zone désertique',lat:34.074,lng:-117.89},
   ];
 
-  if(!perms.map_view)return<AccessDenied/>;
-
   return(
     <div className="pe" style={{height:'calc(100vh - var(--th) - 40px)',display:'flex',flexDirection:'column',gap:8}}>
       {/* Toolbar */}
@@ -1438,14 +1436,25 @@ function MapPage({perms}){
   );
 }
 
+// ─── MAP CANVAS ───────────────────────────────────────────────────────────────
+function MapCanvas({perms}){
+  const canvasRef=useRef(null);
+  const containerRef=useRef(null);
+  const stateRef=useRef({x:0,y:0,zoom:0.6,dragging:false,dragStartX:0,dragStartY:0,img:null,imgLoaded:null,markers:[]});
+  const[markers,setMarkers]=useState([]);
+  const[addMode,setAddMode]=useState(false);
+  const[selMarker,setSelMarker]=useState(null);
+  const[markerForm,setMarkerForm]=useState({label:'',color:'#e87060',icon:'📍'});
+  const[zoom,setZoom]=useState(0.6);
+  const[imgStatus,setImgStatus]=useState('loading');
+  const[coords,setCoords]=useState({x:0,y:0});
+
   // GTA V map — use a public image CDN that allows cross-origin
   const MAP_URL='https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/GTA_V_Map.png/1024px-GTA_V_Map.png';
   const MAP_W=1024,MAP_H=1024;
 
   const MARKER_ICONS=['📍','🏭','🏠','🚗','💰','⚠️','🎯','💊','🗡','🏪','🔴','🟡','🟢'];
   const MARKER_COLORS=['#e87060','#c9a84c','#00d084','#60a5fa','#a78bfa','#f97316','#ec4899','#c8cad4'];
-
-  if(!perms.map_view)return<AccessDenied/>;
 
   const draw=useCallback(()=>{
     const canvas=canvasRef.current;if(!canvas)return;
@@ -1609,6 +1618,8 @@ function MapPage({perms}){
   const zoomIn=()=>{const s=stateRef.current;const canvas=canvasRef.current;if(!canvas)return;const nz=clamp(s.zoom*1.3,0.15,4);const cx=canvas.width/2,cy=canvas.height/2;s.x=cx-(cx-s.x)*(nz/s.zoom);s.y=cy-(cy-s.y)*(nz/s.zoom);s.zoom=nz;setZoom(nz);draw();};
   const zoomOut=()=>{const s=stateRef.current;const canvas=canvasRef.current;if(!canvas)return;const nz=clamp(s.zoom*0.77,0.15,4);const cx=canvas.width/2,cy=canvas.height/2;s.x=cx-(cx-s.x)*(nz/s.zoom);s.y=cy-(cy-s.y)*(nz/s.zoom);s.zoom=nz;setZoom(nz);draw();};
   const delMarker=id=>{setMarkers(prev=>prev.filter(m=>m.id!==id));setSelMarker(null);draw();};
+
+  if(!perms.map_view)return<AccessDenied/>;
 
   return(
     <div className="pe" style={{height:'calc(100vh - var(--th) - 40px)',display:'flex',flexDirection:'column',gap:8}}>
@@ -2586,7 +2597,7 @@ function App(){
       case 'debts':return<Debts currentUser={currentUser} perms={perms}/>;
       case 'vehicles':return<Vehicles currentUser={currentUser} perms={perms}/>;
       case 'chat':return<Chat currentUser={currentUser} perms={perms}/>;
-      case 'map':return<MapPage perms={perms}/>;
+      case 'map':return<MapCanvas perms={perms}/>;
       case 'announcements':return<Announcements currentUser={currentUser} perms={perms}/>;
       case 'logs':return<Logs currentUser={currentUser} perms={perms}/>;
       case 'permissions':return<Permissions currentUser={currentUser}/>;
