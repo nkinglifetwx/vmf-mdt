@@ -77,7 +77,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--fm
 .bdg-gd{background:var(--goldf);color:var(--gold);border:1px solid rgba(201,168,76,.3);}
 .bdg-gr{background:rgba(61,84,112,.2);color:var(--txt2);border:1px solid var(--bdr);}
 .bdg-b{background:rgba(59,130,246,.1);color:#60a5fa;border:1px solid rgba(59,130,246,.3);}
-.gCollaborateur{color:#7a90a8}.gSyndic{color:#60a5fa}.gSenechaux{color:var(--green)}.gRegent{color:var(--gold)}.gHeritier{color:var(--acc)}
+.gCollaborateur{color:#7a90a8}.gSyndic{color:#60a5fa}.gSenechaux{color:var(--green)}.gRegent{color:var(--gold)}.gHeritier{color:#e87060}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:var(--r);font-size:12px;font-weight:600;font-family:var(--fm);cursor:pointer;transition:var(--tr);border:none;outline:none;letter-spacing:.04em;}
 .btn-p{background:var(--acc);color:#0e0e10;}.btn-p:hover{background:#fff;}
 .btn-s{background:var(--bgc);color:var(--txt2);border:1px solid var(--bdr);}.btn-s:hover{background:var(--bgch);color:var(--txt);border-color:var(--bdrb);}
@@ -198,7 +198,7 @@ const fmtTime=()=>new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-d
 
 const GRADES=['Collaborateur','Syndic','Senechaux','Regent','Heritier'];
 const WEAPON_TYPES=['cambu','couteau','hache','katana','machette','marteau','pied de biche','petoire','queue de billard','queue de golf','revolver','batte'];
-const ITEM_CATS=['Drogue','Matériel','Autre'];
+const ITEM_CATS=['Drogue','Matériel','Objets','Autre'];
 // Catégories simplifiées pour le Four
 const FOUR_CATS=['Drogue','Matériel','Objets','Autre'];
 const FOUR_CATS_ALL=['Drogue','Arme','Munitions','Matériel','Nourriture','Alcool','Electronique','Luxe','Argent','Autre','Objets'];
@@ -242,7 +242,7 @@ const DEFAULT_PERMS={
   Collaborateur:{members_view:true,members_add:false,members_edit:false,weapons_view:false,weapons_add:false,weapons_delete:false,debts_view:false,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:false,storage_manage:false,four_view:true,four_buy:false,four_sell:false,four_manage:false,announcements_view:true,announcements_post:false,chat_read:true,chat_write:true,logs_view:false,map_view:true,webhooks_manage:false,flappy_access:false},
 };
 
-const gradeColor=g=>({Heritier:'#c8cad4',Regent:'#c9a84c',Senechaux:'#00d084',Syndic:'#60a5fa',Collaborateur:'#7a90a8'}[g]||'#7a90a8');
+const gradeColor=g=>({Heritier:'#e87060',Regent:'#c9a84c',Senechaux:'#00d084',Syndic:'#60a5fa',Collaborateur:'#7a90a8'}[g]||'#7a90a8');
 const gradeClass=g=>'g'+g;
 
 const pushLog=async(type,msg,level='info',webhookSection)=>{
@@ -567,7 +567,7 @@ function Members({currentUser,perms}){
                     {m.avatarImage?<img src={m.avatarImage} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:m.avatar}
                     {isOnline(m.id)&&<span style={{position:'absolute',bottom:-1,right:-1,width:8,height:8,borderRadius:'50%',background:'var(--green)',border:'2px solid var(--bgc)'}}></span>}
                   </div>
-                  <span style={{color:'var(--txt)',fontWeight:600}}>{m.pseudo}</span>
+                  <span className={gradeClass(m.grade)} style={{fontWeight:600}}>{m.pseudo}</span>
                 </div></td>
                 <td><span className={gradeClass(m.grade)} style={{fontSize:11,fontWeight:600}}>{m.grade}</span></td>
                 <td><span style={{fontFamily:'var(--fc)',fontSize:11}}>{m.phone||'—'}</span></td>
@@ -1255,17 +1255,188 @@ function Chat({currentUser,perms}){
 
 // ─── MAP ─────────────────────────────────────────────────────────────────────
 function MapPage({perms}){
-  const canvasRef=useRef(null);
-  const containerRef=useRef(null);
-  const stateRef=useRef({x:0,y:0,zoom:1,dragging:false,lastX:0,lastY:0,imgLoaded:false,img:null,markers:[]});
-  const rafRef=useRef(null);
-  const[zoom,setZoom]=useState(1);
-  const[coords,setCoords]=useState({x:0,y:0});
+  const mapDivRef=useRef(null);
+  const mapRef=useRef(null);
+  const markersLayerRef=useRef(null);
   const[markers,setMarkers]=useState([]);
   const[addMode,setAddMode]=useState(false);
   const[selMarker,setSelMarker]=useState(null);
   const[markerForm,setMarkerForm]=useState({label:'',color:'#e87060',icon:'📍'});
-  const[imgStatus,setImgStatus]=useState('loading');
+  const[leafletReady,setLeafletReady]=useState(false);
+  const addModeRef=useRef(false);
+  const markerFormRef=useRef(markerForm);
+  const markersRef=useRef([]);
+
+  const MARKER_ICONS=['📍','🏭','🏠','🚗','💰','⚠️','🎯','💊','🗡','🏪','⭐','🔴'];
+  const MARKER_COLORS=['#e87060','#c9a84c','#00d084','#60a5fa','#a78bfa','#f97316','#c8cad4'];
+
+  if(!perms.map_view)return<AccessDenied/>;
+
+  useEffect(()=>{
+    // Load Leaflet CSS + JS dynamically
+    if(window.L){setLeafletReady(true);return;}
+    const link=document.createElement('link');
+    link.rel='stylesheet';link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+    const script=document.createElement('script');
+    script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.onload=()=>setLeafletReady(true);
+    document.head.appendChild(script);
+  },[]);
+
+  useEffect(()=>{
+    if(!leafletReady||!mapDivRef.current||mapRef.current)return;
+    const L=window.L;
+    // Init map — centered on Los Santos (fictional, using a visually central point)
+    const map=L.map(mapDivRef.current,{
+      center:[34.05,-118.25],zoom:11,
+      zoomControl:false,
+      attributionControl:false,
+    });
+    // Dark tile layer — CartoDB Dark Matter (CORS-free, no key needed)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+      attribution:'&copy; OpenStreetMap &copy; CartoDB',
+      subdomains:'abcd',maxZoom:19,
+    }).addTo(map);
+    // Red grid overlay for tactical feel
+    L.control.attribution({position:'bottomleft'}).addTo(map);
+    L.control.zoom({position:'bottomright'}).addTo(map);
+    // Click to add marker
+    map.on('click',e=>{
+      if(!addModeRef.current)return;
+      const f=markerFormRef.current;
+      const id=Date.now();
+      const nm={id,lat:e.latlng.lat,lng:e.latlng.lng,label:f.label||'Marqueur',color:f.color,icon:f.icon};
+      const divIcon=L.divIcon({
+        html:`<div style="font-size:22px;filter:drop-shadow(0 0 4px ${nm.color});cursor:pointer" title="${nm.label}">${nm.icon}</div>`,
+        className:'',iconSize:[28,28],iconAnchor:[14,14],
+      });
+      const marker=L.marker([nm.lat,nm.lng],{icon:divIcon}).addTo(map);
+      const popupContent=`<div style="background:#141416;border:1px solid #2a2a30;border-radius:6px;padding:8px 10px;min-width:120px;font-family:Syne,sans-serif">
+        <div style="font-size:13px;font-weight:700;color:#f0f0f5;margin-bottom:4px">${nm.icon} ${nm.label}</div>
+        <div style="font-size:10px;color:${nm.color};font-family:JetBrains Mono,monospace">📍 ${nm.lat.toFixed(4)}, ${nm.lng.toFixed(4)}</div>
+        <button onclick="window._vmfDelMarker(${id})" style="margin-top:6px;background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);color:#e87060;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;width:100%">🗑 Supprimer</button>
+      </div>`;
+      marker.bindPopup(popupContent,{className:'vmf-popup',closeButton:false});
+      nm._marker=marker;
+      markersRef.current=[...markersRef.current,nm];
+      setMarkers(prev=>[...prev,nm]);
+      addModeRef.current=false;setAddMode(false);
+      marker.openPopup();
+    });
+    mapRef.current=map;
+    // Global delete handler for popup buttons
+    window._vmfDelMarker=(id)=>{
+      const nm=markersRef.current.find(m=>m.id===id);
+      if(nm&&nm._marker)map.removeLayer(nm._marker);
+      markersRef.current=markersRef.current.filter(m=>m.id!==id);
+      setMarkers(prev=>prev.filter(m=>m.id!==id));
+      setSelMarker(null);
+    };
+    return()=>{map.remove();mapRef.current=null;delete window._vmfDelMarker;};
+  },[leafletReady]);
+
+  useEffect(()=>{addModeRef.current=addMode;},[addMode]);
+  useEffect(()=>{markerFormRef.current=markerForm;},[markerForm]);
+
+  const flyTo=(lat,lng)=>{
+    if(mapRef.current)mapRef.current.flyTo([lat,lng],13,{duration:1.2});
+  };
+  const delMarker=id=>{window._vmfDelMarker&&window._vmfDelMarker(id);};
+
+  // Quick zones for GTA-like locations in LA area
+  const QUICK_ZONES=[
+    {label:'🏙 Centre-ville',lat:34.052,lng:-118.243},
+    {label:'✈️ Aéroport',lat:33.943,lng:-118.408},
+    {label:'🏖 Plage',lat:33.988,lng:-118.476},
+    {label:'🌉 Pont autoroutier',lat:34.072,lng:-118.214},
+    {label:'🏔 Montagne',lat:34.134,lng:-118.301},
+    {label:'🏜 Zone désertique',lat:34.074,lng:-117.89},
+  ];
+
+  return(
+    <div className="pe" style={{height:'calc(100vh - var(--th) - 40px)',display:'flex',flexDirection:'column',gap:8}}>
+      {/* Toolbar */}
+      <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0,flexWrap:'wrap'}}>
+        {/* Quick zones */}
+        <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+          {QUICK_ZONES.map(z=>(
+            <button key={z.label} className="btn btn-s btn-sm" style={{fontSize:10}} onClick={()=>flyTo(z.lat,z.lng)}>{z.label}</button>
+          ))}
+        </div>
+        <button className={`btn btn-sm ${addMode?'btn-g':'btn-s'}`} style={{marginLeft:'auto'}} onClick={()=>setAddMode(v=>!v)}>
+          {addMode?'🖱 Cliquer sur la carte…':'📍 Ajouter marqueur'}
+        </button>
+        {addMode&&(
+          <div style={{display:'flex',gap:6,alignItems:'center',background:'var(--bgc)',border:'1px solid var(--green)',borderRadius:'var(--r)',padding:'4px 10px',flexWrap:'wrap'}}>
+            <input className="inp" style={{width:120,padding:'4px 8px',fontSize:11}} value={markerForm.label}
+              onChange={e=>{const v={...markerForm,label:e.target.value};setMarkerForm(v);markerFormRef.current=v;}} placeholder="Nom du lieu..."/>
+            <div style={{display:'flex',gap:3}}>
+              {MARKER_ICONS.map(ic=><button key={ic} onClick={()=>{const v={...markerForm,icon:ic};setMarkerForm(v);markerFormRef.current=v;}}
+                style={{background:markerForm.icon===ic?'var(--accf)':'transparent',border:`1px solid ${markerForm.icon===ic?'var(--acc)':'transparent'}`,borderRadius:4,padding:'2px 4px',cursor:'pointer',fontSize:14}}>{ic}</button>)}
+            </div>
+            <div style={{display:'flex',gap:3}}>
+              {MARKER_COLORS.map(c=><div key={c} onClick={()=>{const v={...markerForm,color:c};setMarkerForm(v);markerFormRef.current=v;}}
+                style={{width:16,height:16,borderRadius:'50%',background:c,cursor:'pointer',border:`2px solid ${markerForm.color===c?'#fff':'transparent'}`,flexShrink:0}}/>)}
+            </div>
+          </div>
+        )}
+      </div>
+      {/* Map + sidebar */}
+      <div style={{flex:1,display:'flex',gap:8,minHeight:0}}>
+        {/* Map div */}
+        <div style={{flex:1,borderRadius:'var(--rl)',overflow:'hidden',border:'1px solid var(--bdr)',position:'relative',background:'#0a0c0e'}}>
+          {!leafletReady&&(
+            <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:10,zIndex:10}}>
+              <div style={{fontSize:32}}>🗺</div>
+              <div style={{fontSize:12,fontFamily:'var(--fc)',color:'var(--txtm)'}}>Chargement de la carte...</div>
+            </div>
+          )}
+          <div ref={mapDivRef} style={{width:'100%',height:'100%'}}/>
+          {addMode&&(
+            <div style={{position:'absolute',top:10,left:'50%',transform:'translateX(-50%)',background:'rgba(0,208,132,0.15)',border:'1px solid var(--green)',borderRadius:'var(--r)',padding:'6px 14px',fontSize:11,fontFamily:'var(--fc)',color:'var(--green)',zIndex:1000,pointerEvents:'none'}}>
+              Cliquez sur la carte pour placer le marqueur
+            </div>
+          )}
+        </div>
+        {/* Marker sidebar */}
+        {markers.length>0&&(
+          <div style={{width:200,flexShrink:0,background:'var(--bgc)',border:'1px solid var(--bdr)',borderRadius:'var(--rl)',overflow:'hidden',display:'flex',flexDirection:'column'}}>
+            <div style={{padding:'10px 12px',borderBottom:'1px solid var(--bdr)',background:'var(--bg3)',fontSize:11,fontWeight:700,color:'var(--txt)'}}>
+              📍 Marqueurs ({markers.length})
+            </div>
+            <div style={{flex:1,overflowY:'auto'}}>
+              {markers.map(m=>(
+                <div key={m.id} style={{padding:'8px 12px',borderBottom:'1px solid var(--bdr)',display:'flex',alignItems:'center',gap:8,cursor:'pointer',
+                  background:selMarker===m.id?'var(--accf)':'transparent',borderLeft:`3px solid ${m.color||'var(--acc)'}`}}
+                  onClick={()=>{flyTo(m.lat,m.lng);setSelMarker(m.id);}}>
+                  <span style={{fontSize:16,flexShrink:0}}>{m.icon||'📍'}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:11,fontWeight:600,color:'var(--txt)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{m.label}</div>
+                    <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)',marginTop:2}}>{m.lat.toFixed(3)}, {m.lng.toFixed(3)}</div>
+                  </div>
+                  <button style={{background:'none',border:'none',color:'var(--txtm)',cursor:'pointer',fontSize:12,flexShrink:0}}
+                    onClick={e=>{e.stopPropagation();delMarker(m.id);}}>🗑</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <style>{`
+        .vmf-popup .leaflet-popup-content-wrapper{background:transparent;border:none;box-shadow:none;padding:0}
+        .vmf-popup .leaflet-popup-content{margin:0}
+        .vmf-popup .leaflet-popup-tip-container{display:none}
+        .leaflet-container{font-family:var(--fm);background:#0e0e10}
+        .leaflet-tile-pane{filter:saturate(0.6) brightness(0.85)}
+        .leaflet-control-zoom a{background:var(--bgc)!important;border-color:var(--bdr)!important;color:var(--txt)!important}
+        .leaflet-control-zoom a:hover{background:var(--bgch)!important}
+        .leaflet-control-attribution{background:rgba(14,14,16,.7)!important;color:var(--txtm)!important;font-size:8px!important}
+        .leaflet-control-attribution a{color:var(--acc)!important}
+      `}</style>
+    </div>
+  );
+}
 
   // GTA V map — use a public image CDN that allows cross-origin
   const MAP_URL='https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/GTA_V_Map.png/1024px-GTA_V_Map.png';
