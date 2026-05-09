@@ -1270,8 +1270,6 @@ function MapPage({perms}){
   const MARKER_ICONS=['📍','🏭','🏠','🚗','💰','⚠️','🎯','💊','🗡','🏪','⭐','🔴'];
   const MARKER_COLORS=['#e87060','#c9a84c','#00d084','#60a5fa','#a78bfa','#f97316','#c8cad4'];
 
-  if(!perms.map_view)return<AccessDenied/>;
-
   useEffect(()=>{
     // Load Leaflet CSS + JS dynamically
     if(window.L){setLeafletReady(true);return;}
@@ -1353,6 +1351,8 @@ function MapPage({perms}){
     {label:'🏔 Montagne',lat:34.134,lng:-118.301},
     {label:'🏜 Zone désertique',lat:34.074,lng:-117.89},
   ];
+
+  if(!perms.map_view)return<AccessDenied/>;
 
   return(
     <div className="pe" style={{height:'calc(100vh - var(--th) - 40px)',display:'flex',flexDirection:'column',gap:8}}>
