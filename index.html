@@ -2577,8 +2577,6 @@ function App(){
 
   useEffect(()=>{if(currentUser)saveSession(currentUser);},[currentUser]);
 
-  if(!currentUser)return<LoginScreen onLogin={u=>{saveSession(u);setCurrentUser(u);}}/>;
-
   const grBadge=g=>({Heritier:'bdg-r',Regent:'bdg-gd',Senechaux:'bdg-g',Syndic:'bdg-b',Collaborateur:'bdg-gr'}[g]||'bdg-gr');
 
   // Nav avec Flappy selon perms
@@ -2588,6 +2586,8 @@ function App(){
     copy[copy.length-1].items.push({id:'flappy',ic:'🐦',label:'Flappy Bird'});
     return copy;
   },[perms]);
+
+  if(!currentUser)return<LoginScreen onLogin={u=>{saveSession(u);setCurrentUser(u);}}/>;
 
   const renderPage=()=>{
     switch(page){
