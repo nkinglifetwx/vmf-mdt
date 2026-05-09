@@ -20,8 +20,8 @@ window.fb={
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>VMF — Réseau Privé</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
 :root{--bg:#0e0e10;--bg2:#141416;--bg3:#1a1a1e;--bgc:#161618;--bgch:#1e1e22;--bdr:#2a2a30;--bdrb:#38383f;--red:#c0392b;--redf:rgba(192,57,43,0.12);--green:#00d084;--greenf:rgba(0,208,132,0.1);--gold:#c9a84c;--goldf:rgba(201,168,76,0.1);--txt:#f0f0f5;--txt2:#9090a0;--txtm:#4a4a55;--acc:#c8cad4;--accf:rgba(200,202,212,0.1);--sw:224px;--th:56px;--fm:'Syne',sans-serif;--fc:'JetBrains Mono',monospace;--r:6px;--rl:10px;--tr:0.18s ease;}
@@ -336,7 +336,7 @@ function FlappyBird(){
     bird:{y:150,vy:0},pipes:[],score:0,best:0,frame:0,status:'idle'
   });
   const rafRef=useRef(null);
-  const W=320,H=480,GAP=130,PIPE_W=44,SPEED=2.2,GRAV=0.38,JUMP=-7;
+  const W=380,H=480,GAP=175,PIPE_W=48,SPEED=1.8,GRAV=0.28,JUMP=-6.2;
 
   const resetPipes=()=>[
     {x:W+60,top:80+Math.random()*(H-GAP-120)},
@@ -447,7 +447,7 @@ function FlappyBird(){
   return(
     <div className="pe" style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
       <div style={{fontSize:13,fontWeight:700,color:'var(--acc)',letterSpacing:'.1em'}}>🐦 FLAPPY VMF — Easter Egg</div>
-      <canvas ref={canvasRef} width={W} height={H} className="flappy-canvas" onClick={action}/>
+      <canvas ref={canvasRef} width={W} height={H} className="flappy-canvas" onClick={action} style={{maxWidth:'100%'}}/>
       <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>Cliquer sur le canvas ou appuyer sur Espace / ↑ pour sauter</div>
     </div>
   );
@@ -1254,15 +1254,87 @@ function Chat({currentUser,perms}){
 
 // ─── MAP ─────────────────────────────────────────────────────────────────────
 function MapPage({perms}){
+  const[zone,setZone]=useState('ls');
+  const[bg,setBg]=useState('satellite');
   if(!perms.map_view)return<AccessDenied/>;
+  const mapUrl=`https://gtaweb.eu/en/gtao-map#${zone}&bg=${bg}`;
+  const ZONES=[
+    {id:'ls',label:'Los Santos'},
+    {id:'sandy',label:'Sandy Shores'},
+    {id:'paleto',label:'Paleto Bay'},
+    {id:'cayo',label:'Cayo Perico'},
+  ];
+  const BG_MODES=[
+    {id:'satellite',label:'🛰 Satellite'},
+    {id:'map',label:'🗺 Carte'},
+    {id:'dark',label:'🌙 Dark'},
+  ];
   return(
-    <div className="pe" style={{height:'calc(100vh - var(--th) - 40px)'}}>
-      <div style={{height:'100%',borderRadius:'var(--rl)',overflow:'hidden',border:'1px solid var(--bdr)',background:'#000',display:'flex',flexDirection:'column'}}>
+    <div className="pe" style={{height:'calc(100vh - var(--th) - 40px)',display:'flex',flexDirection:'column',gap:10}}>
+      {/* Controls */}
+      <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',flexShrink:0}}>
+        <div style={{display:'flex',gap:5}}>
+          {ZONES.map(z=><button key={z.id} className={`btn btn-sm ${zone===z.id?'btn-p':'btn-s'}`} onClick={()=>setZone(z.id)}>{z.label}</button>)}
+        </div>
+        <div style={{display:'flex',gap:5,marginLeft:'auto'}}>
+          {BG_MODES.map(m=><button key={m.id} className={`btn btn-sm ${bg===m.id?'btn-p':'btn-s'}`} onClick={()=>setBg(m.id)}>{m.label}</button>)}
+        </div>
+      </div>
+      {/* Map container */}
+      <div style={{flex:1,borderRadius:'var(--rl)',overflow:'hidden',border:'1px solid var(--bdr)',background:'#0a0a0c',display:'flex',flexDirection:'column',position:'relative'}}>
         <div style={{padding:'8px 14px',borderBottom:'1px solid var(--bdr)',background:'var(--bg3)',fontSize:11,fontFamily:'var(--fc)',color:'var(--txtm)',display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
           <span>🗺</span><span>GTA Online Map — Los Santos & Blaine County</span>
-          <a href="https://gtaweb.eu/en/gtao-map#ls&bg=satellite" target="_blank" rel="noopener noreferrer" style={{marginLeft:'auto',color:'var(--acc)',fontSize:10,textDecoration:'none'}}>Ouvrir ↗</a>
+          <a href={mapUrl} target="_blank" rel="noopener noreferrer"
+            style={{marginLeft:'auto',color:'var(--acc)',fontSize:10,textDecoration:'none',background:'var(--accf)',border:'1px solid rgba(200,202,212,.2)',borderRadius:4,padding:'2px 8px'}}>
+            Ouvrir dans un nouvel onglet ↗
+          </a>
         </div>
-        <iframe title="GTA Map" src="https://gtaweb.eu/en/gtao-map#ls&bg=satellite" style={{flex:1,width:'100%',border:'none'}} sandbox="allow-scripts allow-same-origin allow-popups allow-forms" loading="lazy"/>
+        {/* Map preview with open button */}
+        <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:20,padding:30,background:'radial-gradient(ellipse at center,#111214 0%,#0a0a0c 100%)'}}>
+          {/* GTA map visual */}
+          <div style={{position:'relative',width:'100%',maxWidth:500}}>
+            <div style={{background:'var(--bg2)',border:'1px solid var(--bdrb)',borderRadius:12,padding:24,textAlign:'center',position:'relative',overflow:'hidden'}}>
+              <div style={{position:'absolute',inset:0,opacity:.04,backgroundImage:'repeating-linear-gradient(0deg,transparent,transparent 20px,var(--bdr) 20px,var(--bdr) 21px),repeating-linear-gradient(90deg,transparent,transparent 20px,var(--bdr) 20px,var(--bdr) 21px)'}}></div>
+              <div style={{position:'relative',zIndex:1}}>
+                <div style={{fontSize:48,marginBottom:10}}>🗺</div>
+                <div style={{fontSize:16,fontWeight:800,color:'var(--txt)',letterSpacing:'.08em',marginBottom:6}}>GTA ONLINE MAP</div>
+                <div style={{fontSize:11,fontFamily:'var(--fc)',color:'var(--txtm)',marginBottom:6}}>Los Santos & Blaine County</div>
+                <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:18,flexWrap:'wrap'}}>
+                  <span style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 7px'}}>
+                    Zone: {ZONES.find(z2=>z2.id===zone)?.label}
+                  </span>
+                  <span style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 7px'}}>
+                    Mode: {BG_MODES.find(m=>m.id===bg)?.label}
+                  </span>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:8,maxWidth:280,margin:'0 auto'}}>
+                  <a href={mapUrl} target="_blank" rel="noopener noreferrer"
+                    style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'var(--acc)',color:'#0e0e10',borderRadius:'var(--r)',padding:'11px 20px',fontSize:13,fontWeight:700,textDecoration:'none',letterSpacing:'.04em',transition:'var(--tr)'}}>
+                    🗺 Ouvrir la Carte Complète
+                  </a>
+                  <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',textAlign:'center',lineHeight:1.5}}>
+                    La carte s'ouvre dans un nouvel onglet.<br/>
+                    <span style={{color:'#e87060'}}>Les iframes externes sont bloquées par la politique de sécurité du site.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Quick links */}
+          <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
+            {[
+              {label:'🏙 Los Santos',url:'https://gtaweb.eu/en/gtao-map#ls&bg=satellite'},
+              {label:'🏜 Sandy Shores',url:'https://gtaweb.eu/en/gtao-map#sandy&bg=satellite'},
+              {label:'🌲 Paleto Bay',url:'https://gtaweb.eu/en/gtao-map#paleto&bg=satellite'},
+              {label:'🏝 Cayo Perico',url:'https://gtaweb.eu/en/gtao-map#cayo&bg=satellite'},
+            ].map(l=>(
+              <a key={l.label} href={l.url} target="_blank" rel="noopener noreferrer"
+                style={{fontSize:11,background:'var(--bgc)',border:'1px solid var(--bdr)',borderRadius:'var(--r)',padding:'6px 12px',color:'var(--txt2)',textDecoration:'none',fontFamily:'var(--fc)',transition:'var(--tr)'}}>
+                {l.label}
+              </a>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1498,67 +1570,112 @@ function Storage({currentUser,perms}){
 
   return(
     <div className="pe">
+      {/* Stats */}
       <div className="sgrid" style={{marginBottom:14}}>
         <div className="sc g"><div className="sl">Entrepôts</div><div className="sv">{warehouses.length}</div><span className="si">🏭</span></div>
         <div className="sc gd"><div className="sl">Références</div><div className="sv">{items.length}</div><div className="ss">{items.reduce((s,i)=>s+i.qty,0)} unités</div><span className="si">📦</span></div>
+        <div className="sc b"><div className="sl">Sélection</div><div className="sv">{selWh?warehouses.find(w=>w.id===selWh)?.name||'—':'Tout'}</div><div className="ss">{visible.length} objets</div><span className="si">🎯</span></div>
       </div>
-      <div className="g2">
-        {/* Entrepôts */}
-        <div className="card">
-          <div className="ch"><span className="ct">🏭 Entrepôts</span>{perms.storage_manage&&<button className="btn btn-p btn-sm" style={{marginLeft:'auto'}} onClick={()=>setShowWh(true)}>+</button>}</div>
-          {sortedWarehouses.length===0?<div style={{padding:20,textAlign:'center',color:'var(--txtm)',fontSize:12}}>Aucun entrepôt</div>:
-            sortedWarehouses.map(w=>(
-              <div key={w.id} onClick={()=>setSelWh(selWh===w.id?null:w.id)}
-                style={{padding:'10px 14px',borderBottom:'1px solid var(--bdr)',cursor:'pointer',background:selWh===w.id?'var(--accf)':'transparent',display:'flex',alignItems:'center',gap:9}}>
-                <div style={{width:7,height:7,borderRadius:'50%',background:w.color,flexShrink:0}}></div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:12,fontWeight:600,color:'var(--txt)'}}>{w.name}</div>
-                  <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>{w.zone} • {whUsage(w.id)}/{w.capacity}</div>
-                  <div className="pb" style={{marginTop:3}}><div className="pf" style={{width:`${Math.min(100,Math.round(whUsage(w.id)/w.capacity*100))}%`,background:w.color}}></div></div>
+
+      {/* Warehouse TABS */}
+      <div style={{marginBottom:14}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'.1em',color:'var(--txt)',textTransform:'uppercase'}}>🏭 Entrepôts</div>
+          {perms.storage_manage&&<button className="btn btn-p btn-sm" onClick={()=>setShowWh(true)}>+ Ajouter</button>}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:10}}>
+          {/* ALL tab */}
+          <div onClick={()=>setSelWh(null)} style={{cursor:'pointer',background:selWh===null?'var(--accf)':'var(--bgc)',border:`2px solid ${selWh===null?'var(--acc)':'var(--bdr)'}`,borderRadius:10,padding:'14px 16px',transition:'var(--tr)',position:'relative',overflow:'hidden'}}>
+            <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:selWh===null?'var(--acc)':'transparent',transition:'var(--tr)'}}></div>
+            <div style={{fontSize:22,marginBottom:6}}>🏭</div>
+            <div style={{fontSize:13,fontWeight:700,color:'var(--txt)',marginBottom:2}}>Tout afficher</div>
+            <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>{items.length} objets • {items.reduce((s,i)=>s+i.qty,0)} unités</div>
+          </div>
+          {sortedWarehouses.map(w=>{
+            const usage=whUsage(w.id);
+            const pct=Math.min(100,Math.round(usage/(w.capacity||50)*100));
+            const isActive=selWh===w.id;
+            return(
+              <div key={w.id} onClick={()=>setSelWh(isActive?null:w.id)}
+                style={{cursor:'pointer',background:isActive?'var(--accf)':'var(--bgc)',border:`2px solid ${isActive?w.color:'var(--bdr)'}`,borderRadius:10,padding:'14px 16px',transition:'var(--tr)',position:'relative',overflow:'hidden'}}>
+                <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:w.color,opacity:isActive?1:0.4,transition:'var(--tr)'}}></div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+                  <div style={{width:10,height:10,borderRadius:'50%',background:w.color,marginTop:2,flexShrink:0}}></div>
+                  <div style={{display:'flex',gap:3}} onClick={e=>e.stopPropagation()}>
+                    {perms.storage_manage&&<button className="btn btn-s btn-sm" style={{padding:'2px 6px',fontSize:10}} onClick={()=>setEditWh({...w})}>✏</button>}
+                    {perms.storage_manage&&currentUser.grade==='Heritier'&&<button className="btn btn-d btn-sm" style={{padding:'2px 6px',fontSize:10}} onClick={()=>delWh(w.id)}>🗑</button>}
+                  </div>
                 </div>
-                <div style={{display:'flex',gap:4}} onClick={e=>e.stopPropagation()}>
-                  {perms.storage_manage&&<button className="btn btn-s btn-sm" onClick={()=>setEditWh({...w})}>✏</button>}
-                  {perms.storage_manage&&currentUser.grade==='Heritier'&&<button className="btn btn-d btn-sm" onClick={()=>delWh(w.id)}>🗑</button>}
+                <div style={{fontSize:13,fontWeight:700,color:'var(--txt)',marginBottom:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{w.name}</div>
+                <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',marginBottom:8}}>{w.zone||'Sans zone'}</div>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:5}}>
+                  <span style={{fontSize:10,fontFamily:'var(--fc)',color:w.color,fontWeight:700}}>{usage}<span style={{color:'var(--txtm)',fontWeight:400}}>/{w.capacity}</span></span>
+                  <span style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>{pct}%</span>
+                </div>
+                <div style={{height:4,background:'var(--bg3)',borderRadius:2,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${pct}%`,background:w.color,borderRadius:2,transition:'width .4s ease'}}></div>
                 </div>
               </div>
-            ))
-          }
+            );
+          })}
         </div>
-        {/* Inventaire */}
-        <div className="card">
-          <div className="ch"><span className="ct">📦 Inventaire</span>{perms.storage_manage&&<button className="btn btn-p btn-sm" style={{marginLeft:'auto'}} onClick={()=>setShowItem(true)}>+</button>}</div>
-          <div style={{padding:'6px 12px',borderBottom:'1px solid var(--bdr)',display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-            <div style={{display:'flex',gap:3,flexWrap:'wrap',flex:1}}>
-              {['all',...ITEM_CATS].map(c=><button key={c} className={`btn btn-sm ${filter===c?'btn-p':'btn-s'}`} onClick={()=>setFilter(c)} style={{fontSize:10}}>{c==='all'?'Tout':c}</button>)}
-            </div>
-          </div>
-          <div style={{padding:'6px 12px',borderBottom:'1px solid var(--bdr)'}}>
-            <input className="searchbar" style={{width:'100%'}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Rechercher..."/>
-          </div>
-          <div style={{maxHeight:360,overflowY:'auto'}}>
-            {visible.length===0?<div style={{padding:20,textAlign:'center',color:'var(--txtm)',fontSize:12}}>Aucun objet</div>:
-              <table className="dt"><thead><tr><th>OBJET</th><th>QTÉ</th><th>PAR</th><th></th></tr></thead>
-              <tbody>
-                {visible.map(i=>(
-                  <tr key={i.id}>
-                    <td><div style={{display:'flex',alignItems:'center',gap:7}}>
-                      <div style={{width:28,height:28,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0,overflow:'hidden',border:'1px solid var(--bdr)'}}>
-                        {i.imageUrl?<img src={i.imageUrl} alt={i.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{fontSize:12,color:'var(--txtm)'}}>?</span>}
-                      </div>
-                      <div><div style={{fontSize:11,color:'var(--txt)',fontWeight:600}}>{i.name}</div><div style={{fontSize:9,color:'var(--txtm)',fontFamily:'var(--fc)'}}>{i.category}</div></div>
-                    </div></td>
-                    <td style={{fontFamily:'var(--fc)',fontWeight:700}}>{i.qty}</td>
-                    <td style={{fontSize:10,color:'var(--txtm)',fontFamily:'var(--fc)'}}>{i.addedBy}</td>
-                    <td><div style={{display:'flex',gap:3}}>
-                      {perms.storage_manage&&<button className="btn btn-s btn-sm" onClick={()=>setEditItem({...i})}>✏</button>}
-                      {perms.storage_manage&&<button className="btn btn-d btn-sm" onClick={()=>delItem(i.id)}>🗑</button>}
-                    </div></td>
-                  </tr>
-                ))}
-              </tbody></table>
-            }
-          </div>
+      </div>
+
+      {/* Inventaire — full width big list */}
+      <div className="card">
+        <div className="ch">
+          <span className="ct">📦 Inventaire{selWh?' — '+warehouses.find(w=>w.id===selWh)?.name:''}</span>
+          <span className="csub">{visible.length} objet{visible.length!==1?'s':''}</span>
+          {perms.storage_manage&&<button className="btn btn-p btn-sm" style={{marginLeft:8}} onClick={()=>setShowItem(true)}>+ Ajouter</button>}
         </div>
+        {/* Filters + search */}
+        <div style={{padding:'8px 14px',borderBottom:'1px solid var(--bdr)',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+          <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+            {['all',...ITEM_CATS].map(c=><button key={c} className={`btn btn-sm ${filter===c?'btn-p':'btn-s'}`} onClick={()=>setFilter(c)} style={{fontSize:10,padding:'3px 8px'}}>{c==='all'?'Tout':c}</button>)}
+          </div>
+          <input className="searchbar" style={{marginLeft:'auto',width:220}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Rechercher..."/>
+        </div>
+        {/* Big item list */}
+        {visible.length===0
+          ?<div style={{padding:32,textAlign:'center',color:'var(--txtm)',fontSize:12}}>Aucun objet trouvé</div>
+          :<div style={{maxHeight:'calc(100vh - 420px)',overflowY:'auto'}}>
+            {visible.map(i=>{
+              const wh=warehouses.find(w=>w.id===i.warehouseId);
+              return(
+                <div key={i.id} style={{display:'flex',alignItems:'center',gap:16,padding:'14px 18px',borderBottom:'1px solid var(--bdr)',transition:'var(--tr)',background:'transparent'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='var(--bgch)'}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  {/* Image */}
+                  <div style={{width:54,height:54,borderRadius:10,flexShrink:0,overflow:'hidden',border:'1px solid var(--bdr)',background:'var(--bg3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>
+                    {i.imageUrl?<img src={i.imageUrl} alt={i.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:'📦'}
+                  </div>
+                  {/* Info */}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:700,color:'var(--txt)',marginBottom:3}}>{i.name}</div>
+                    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+                      <span className="bdg bdg-gr">{i.category}</span>
+                      {wh&&<span style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',display:'flex',alignItems:'center',gap:4}}>
+                        <span style={{width:7,height:7,borderRadius:'50%',background:wh.color,display:'inline-block'}}></span>
+                        {wh.name}
+                      </span>}
+                      {i.note&&<span style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',fontStyle:'italic'}}>"{i.note}"</span>}
+                    </div>
+                  </div>
+                  {/* Qty big */}
+                  <div style={{textAlign:'right',flexShrink:0,minWidth:80}}>
+                    <div style={{fontSize:28,fontWeight:800,color:'var(--txt)',lineHeight:1}}>{i.qty}</div>
+                    <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)',marginTop:2}}>unité{i.qty!==1?'s':''}</div>
+                  </div>
+                  {/* Actions */}
+                  {perms.storage_manage&&<div style={{display:'flex',gap:5,flexShrink:0}}>
+                    <button className="btn btn-s btn-sm" onClick={()=>setEditItem({...i})}>✏</button>
+                    <button className="btn btn-d btn-sm" onClick={()=>delItem(i.id)}>🗑</button>
+                  </div>}
+                </div>
+              );
+            })}
+          </div>
+        }
       </div>
 
       {/* Modal add warehouse */}
@@ -1661,54 +1778,100 @@ function Permissions({currentUser}){
   const hasOv=id=>id in memberPerms&&Object.keys(memberPerms[id]).length>0;
   return(
     <div className="pe">
-      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
         <div style={{display:'flex',gap:5}}>
           <button className={`btn btn-sm ${tab==='grades'?'btn-p':'btn-s'}`} onClick={()=>setTab('grades')}>🛡 Par Grade</button>
           <button className={`btn btn-sm ${tab==='members'?'btn-p':'btn-s'}`} onClick={()=>setTab('members')}>👤 Par Membre</button>
         </div>
-        {tab==='grades'&&<button className="btn btn-s btn-sm" style={{marginLeft:'auto'}} onClick={reset}>↺ Réinitialiser</button>}
+        {tab==='grades'&&<button className="btn btn-s btn-sm" style={{marginLeft:'auto'}} onClick={reset}>↺ Réinitialiser défauts</button>}
       </div>
-      {tab==='grades'&&cats.map(cat=>{
-        const catPerms=Object.entries(ALL_PERMS).filter(([,v])=>v.cat===cat);
-        return(
-          <div className="card" key={cat} style={{marginBottom:10}}>
-            <div className="ch"><span className="ct">{cat}</span></div>
-            <div style={{overflowX:'auto'}}>
-              <table style={{width:'100%',borderCollapse:'collapse'}}>
-                <thead><tr>
-                  <th style={{textAlign:'left',padding:'8px 12px',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',borderBottom:'1px solid var(--bdr)',minWidth:180}}>PERMISSION</th>
-                  {GRADES.map(g=><th key={g} style={{textAlign:'center',padding:'8px',fontSize:10,fontFamily:'var(--fc)',borderBottom:'1px solid var(--bdr)',minWidth:80}}><span className={gradeClass(g)} style={{fontWeight:600}}>{g}</span></th>)}
-                </tr></thead>
-                <tbody>
-                  {catPerms.map(([key,meta])=>(
-                    <tr key={key}>
-                      <td style={{padding:'8px 12px',fontSize:11,color:'var(--txt2)',borderBottom:'1px solid var(--bdr)'}}>{meta.label}</td>
-                      {GRADES.map(g=>(
-                        <td key={g} style={{textAlign:'center',padding:'8px',borderBottom:'1px solid var(--bdr)'}}>
-                          {g==='Heritier'?<span title="Toujours actif" style={{fontSize:13}}>✅</span>:<button className={`ptog ${eff[g]?.[key]?'on':'off'}`} onClick={()=>toggleGrade(g,key)}/>}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {tab==='grades'&&(
+        <div>
+          {/* Grade header legend */}
+          <div className="card" style={{marginBottom:12,padding:'12px 16px'}}>
+            <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+              <span style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',letterSpacing:'.1em',textTransform:'uppercase'}}>Grades :</span>
+              {GRADES.map(g=>(
+                <div key={g} style={{display:'flex',alignItems:'center',gap:5,background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:6,padding:'4px 10px'}}>
+                  <div style={{width:8,height:8,borderRadius:'50%',background:gradeColor(g)}}></div>
+                  <span className={gradeClass(g)} style={{fontSize:11,fontWeight:600}}>{g}</span>
+                </div>
+              ))}
+              <div style={{marginLeft:'auto',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>
+                🟢 = Activé &nbsp; ⚫ = Désactivé &nbsp; ✅ = Toujours (Héritier)
+              </div>
             </div>
           </div>
-        );
-      })}
+          {cats.map(cat=>{
+            const catPerms=Object.entries(ALL_PERMS).filter(([,v])=>v.cat===cat);
+            const catIcons={Membres:'👥',Armes:'🗡',Dettes:'💰',Véhicules:'🚗',Stockage:'🏭',Four:'🍖',Annonces:'📢',Chat:'💬',Logs:'📋',Carte:'🗺',Admin:'⚙️','Easter Egg':'🎮'};
+            return(
+              <div className="card" key={cat} style={{marginBottom:10,overflow:'hidden'}}>
+                <div className="ch" style={{background:'var(--bg3)'}}>
+                  <span className="ct">{catIcons[cat]||'•'} {cat}</span>
+                  <span className="csub">{catPerms.length} permission{catPerms.length!==1?'s':''}</span>
+                </div>
+                <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',minWidth:540}}>
+                    <thead>
+                      <tr style={{background:'rgba(255,255,255,.02)'}}>
+                        <th style={{textAlign:'left',padding:'10px 16px',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',borderBottom:'1px solid var(--bdr)',minWidth:200,letterSpacing:'.08em'}}>PERMISSION</th>
+                        {GRADES.map(g=>(
+                          <th key={g} style={{textAlign:'center',padding:'10px 12px',fontSize:10,fontFamily:'var(--fc)',borderBottom:'1px solid var(--bdr)',minWidth:90,borderLeft:'1px solid var(--bdr)'}}>
+                            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
+                              <div style={{width:8,height:8,borderRadius:'50%',background:gradeColor(g)}}></div>
+                              <span className={gradeClass(g)} style={{fontWeight:700,fontSize:10}}>{g}</span>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {catPerms.map(([key,meta],idx)=>(
+                        <tr key={key} style={{background:idx%2===0?'transparent':'rgba(255,255,255,.01)'}}>
+                          <td style={{padding:'10px 16px',fontSize:12,color:'var(--txt2)',borderBottom:'1px solid var(--bdr)'}}>{meta.label}</td>
+                          {GRADES.map(g=>{
+                            const active=eff[g]?.[key];
+                            return(
+                              <td key={g} style={{textAlign:'center',padding:'10px 12px',borderBottom:'1px solid var(--bdr)',borderLeft:'1px solid var(--bdr)'}}>
+                                {g==='Heritier'
+                                  ?<span style={{fontSize:14}}>✅</span>
+                                  :<button className={`ptog ${active?'on':'off'}`}
+                                      style={active?{background:gradeColor(g)}:{}}
+                                      title={`${active?'Désactiver':'Activer'} pour ${g}`}
+                                      onClick={()=>toggleGrade(g,key)}/>
+                                }
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {tab==='members'&&(
         <div className="g2">
           <div className="card">
-            <div className="ch"><span className="ct">Sélectionner</span></div>
+            <div className="ch"><span className="ct">Membres</span><span className="csub">{accounts.length} comptes</span></div>
             {accounts.map(acc=>{
               const mem=members.find(m=>m.id===acc.memberId);if(!mem)return null;
               return(
                 <div key={acc.id} onClick={()=>setSelMember(acc.id)}
-                  style={{padding:'10px 14px',borderBottom:'1px solid var(--bdr)',cursor:'pointer',background:selMember===acc.id?'var(--accf)':'transparent',display:'flex',alignItems:'center',gap:9}}>
-                  <div style={{width:26,height:26,borderRadius:'50%',background:mem.avatarColor||gradeColor(mem.grade),display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>{mem.avatar}</div>
-                  <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:'var(--txt)'}}>{mem.pseudo}</div><span className={gradeClass(mem.grade)} style={{fontSize:10,fontFamily:'var(--fc)'}}>{mem.grade}</span></div>
-                  {hasOv(acc.id)&&<span className="bdg bdg-gd">Custom</span>}
-                  {selMember===acc.id&&<span style={{color:'var(--acc)'}}>▶</span>}
+                  style={{padding:'12px 14px',borderBottom:'1px solid var(--bdr)',cursor:'pointer',background:selMember===acc.id?'var(--accf)':'transparent',display:'flex',alignItems:'center',gap:9,transition:'var(--tr)'}}>
+                  <div style={{width:32,height:32,borderRadius:'50%',background:mem.avatarColor||gradeColor(mem.grade),display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0,border:`2px solid ${selMember===acc.id?gradeColor(mem.grade):'var(--bdr)'}`}}>{mem.avatar}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12,fontWeight:600,color:'var(--txt)'}}>{mem.pseudo}</div>
+                    <span className={gradeClass(mem.grade)} style={{fontSize:10,fontFamily:'var(--fc)'}}>{mem.grade}</span>
+                  </div>
+                  <div style={{display:'flex',gap:5,alignItems:'center'}}>
+                    {hasOv(acc.id)&&<span className="bdg bdg-gd" style={{fontSize:8}}>CUSTOM</span>}
+                    {selMember===acc.id&&<span style={{color:'var(--acc)',fontSize:14}}>▶</span>}
+                  </div>
                 </div>
               );
             })}
@@ -1718,24 +1881,38 @@ function Permissions({currentUser}){
             const mem=members.find(m=>m.id===acc?.memberId);if(!mem)return null;
             return(
               <div>
-                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
-                  <span className={gradeClass(mem.grade)} style={{fontWeight:700,fontSize:13}}>{mem.pseudo}</span>
-                  <span style={{color:'var(--txtm)',fontFamily:'var(--fc)',fontSize:10}}>— {mem.grade}</span>
-                  {hasOv(selMember)&&<button className="btn btn-s btn-sm" onClick={()=>resetMember(selMember)}>↺ Reset</button>}
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,background:'var(--bgc)',border:'1px solid var(--bdr)',borderRadius:'var(--r)',padding:'10px 14px'}}>
+                  <div style={{width:36,height:36,borderRadius:'50%',background:mem.avatarColor||gradeColor(mem.grade),display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,border:`2px solid ${gradeColor(mem.grade)}`}}>{mem.avatar}</div>
+                  <div>
+                    <span className={gradeClass(mem.grade)} style={{fontWeight:700,fontSize:14}}>{mem.pseudo}</span>
+                    <div style={{color:'var(--txtm)',fontFamily:'var(--fc)',fontSize:10,marginTop:2}}>{mem.grade} • {acc.username}</div>
+                  </div>
+                  {hasOv(selMember)&&<>
+                    <span className="bdg bdg-gd" style={{marginLeft:'auto'}}>Overrides actifs</span>
+                    <button className="btn btn-s btn-sm" onClick={()=>resetMember(selMember)}>↺ Reset</button>
+                  </>}
+                  {!hasOv(selMember)&&<span style={{marginLeft:'auto',fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>Perms du grade</span>}
                 </div>
-                <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)',marginBottom:10}}>🟡 = override individuel actif</div>
                 {cats.map(cat=>{
                   const catPerms=Object.entries(ALL_PERMS).filter(([,v])=>v.cat===cat);
                   return(
                     <div className="card" key={cat} style={{marginBottom:8}}>
-                      <div className="ch" style={{padding:'7px 12px'}}><span className="ct" style={{fontSize:10}}>{cat}</span></div>
+                      <div className="ch" style={{padding:'8px 14px',background:'var(--bg3)'}}><span className="ct" style={{fontSize:10}}>{cat}</span></div>
                       {catPerms.map(([key,meta])=>{
                         const isOv=selMember in memberPerms&&key in(memberPerms[selMember]||{});
                         const val=getMemberPerm(selMember,key);
                         return(
-                          <div key={key} style={{display:'flex',alignItems:'center',padding:'7px 12px',borderBottom:'1px solid var(--bdr)',gap:10}}>
-                            <span style={{flex:1,fontSize:11,color:isOv?'var(--gold)':'var(--txt2)'}}>{meta.label}{isOv&&<span style={{fontSize:9,fontFamily:'var(--fc)',marginLeft:6,color:'var(--gold)'}}>OVERRIDE</span>}</span>
-                            {mem.grade==='Heritier'?<span style={{fontSize:13}}>✅</span>:<button className={`ptog ${val?'on':'off'}`} style={isOv?{boxShadow:'0 0 0 2px var(--gold)'}:{}} onClick={()=>toggleMember(selMember,key)}/>}
+                          <div key={key} style={{display:'flex',alignItems:'center',padding:'9px 14px',borderBottom:'1px solid var(--bdr)',gap:10,background:isOv?'rgba(201,168,76,.04)':'transparent'}}>
+                            <div style={{flex:1}}>
+                              <span style={{fontSize:11,color:isOv?'var(--gold)':'var(--txt2)'}}>{meta.label}</span>
+                              {isOv&&<span style={{fontSize:8,fontFamily:'var(--fc)',marginLeft:7,color:'var(--gold)',background:'rgba(201,168,76,.1)',border:'1px solid rgba(201,168,76,.2)',borderRadius:3,padding:'1px 4px'}}>OVERRIDE</span>}
+                            </div>
+                            {mem.grade==='Heritier'
+                              ?<span style={{fontSize:13}}>✅</span>
+                              :<button className={`ptog ${val?'on':'off'}`}
+                                  style={isOv&&val?{background:'var(--gold)',boxShadow:'0 0 0 2px rgba(201,168,76,.3)'}:isOv?{boxShadow:'0 0 0 2px rgba(201,168,76,.3)'}:{}}
+                                  onClick={()=>toggleMember(selMember,key)}/>
+                            }
                           </div>
                         );
                       })}
@@ -1744,7 +1921,10 @@ function Permissions({currentUser}){
                 })}
               </div>
             );
-          })():<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:200,color:'var(--txtm)',fontSize:12,fontFamily:'var(--fc)'}}>← Sélectionner un membre</div>}
+          })():<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:200,color:'var(--txtm)',fontSize:12,fontFamily:'var(--fc)',flexDirection:'column',gap:10}}>
+            <span style={{fontSize:32}}>👈</span>
+            <span>Sélectionner un membre</span>
+          </div>}
         </div>
       )}
     </div>
@@ -2004,10 +2184,10 @@ function App(){
     if(!currentUser)return{};
     if(currentUser.grade==='Heritier')return ALL_TRUE;
     const base=fbPermsData||DEFAULT_PERMS;
-    const gradePerms=base[currentUser.grade]||DEFAULT_PERMS[currentUser.grade]||{};
-    const overrides=memberPermsData[currentUser.accountId]||{};
+    const gradePerms=(base[currentUser.grade])||DEFAULT_PERMS[currentUser.grade]||{};
+    const overrides=(memberPermsData&&currentUser.accountId)?memberPermsData[currentUser.accountId]||{}:{};
     return{...gradePerms,...overrides};
-  },[currentUser,fbPermsData,memberPermsData]);
+  },[currentUser?.grade,currentUser?.accountId,fbPermsData,memberPermsData]);
 
   const logout=async()=>{
     if(currentUser){await setPresenceF(currentUser.accountId,currentUser.id,false);pushLog('connexion',`${currentUser.pseudo} déconnecté`,'info','connexions');}
