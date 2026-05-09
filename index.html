@@ -198,7 +198,7 @@ const fmtTime=()=>new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-d
 
 const GRADES=['Collaborateur','Syndic','Senechaux','Regent','Heritier'];
 const WEAPON_TYPES=['cambu','couteau','hache','katana','machette','marteau','pied de biche','petoire','queue de billard','queue de golf','revolver','batte'];
-const ITEM_CATS=['Drogue','Matériel','Objets','Autre'];
+const ITEM_CATS=['Drogue','Arme','Munitions','Matériel','Nourriture','Alcool','Electronique','Luxe','Argent','Autre','Objets'];
 // Catégories simplifiées pour le Four
 const FOUR_CATS=['Drogue','Matériel','Objets','Autre'];
 const FOUR_CATS_ALL=['Drogue','Arme','Munitions','Matériel','Nourriture','Alcool','Electronique','Luxe','Argent','Autre','Objets'];
@@ -228,6 +228,8 @@ const ALL_PERMS={
   chat_read:{label:'💬 Lire le chat',cat:'Chat'},
   chat_write:{label:'💬 Écrire dans le chat',cat:'Chat'},
   logs_view:{label:'📋 Voir les logs',cat:'Logs'},
+  items_view:{label:'📦 Voir la DB items',cat:'Items'},
+  items_manage:{label:'📦 Gérer la DB items',cat:'Items'},
   map_view:{label:'🗺 Voir la carte',cat:'Carte'},
   webhooks_manage:{label:'🔗 Gérer les webhooks',cat:'Admin'},
   flappy_access:{label:'🐦 Accès Flappy Bird',cat:'Easter Egg'},
@@ -237,9 +239,9 @@ const ALL_TRUE=Object.fromEntries(Object.keys(ALL_PERMS).map(k=>[k,true]));
 const DEFAULT_PERMS={
   Heritier:ALL_TRUE,
   Regent:{...ALL_TRUE,logs_view:false,flappy_access:false},
-  Senechaux:{members_view:true,members_add:false,members_edit:false,weapons_view:true,weapons_add:true,weapons_delete:false,debts_view:true,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:true,storage_manage:true,four_view:true,four_buy:false,four_sell:true,four_manage:false,announcements_view:true,announcements_post:true,chat_read:true,chat_write:true,logs_view:false,map_view:true,webhooks_manage:false,flappy_access:false},
-  Syndic:{members_view:true,members_add:false,members_edit:false,weapons_view:true,weapons_add:false,weapons_delete:false,debts_view:true,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:true,storage_manage:false,four_view:true,four_buy:false,four_sell:true,four_manage:false,announcements_view:true,announcements_post:false,chat_read:true,chat_write:true,logs_view:false,map_view:true,webhooks_manage:false,flappy_access:false},
-  Collaborateur:{members_view:true,members_add:false,members_edit:false,weapons_view:false,weapons_add:false,weapons_delete:false,debts_view:false,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:false,storage_manage:false,four_view:true,four_buy:false,four_sell:false,four_manage:false,announcements_view:true,announcements_post:false,chat_read:true,chat_write:true,logs_view:false,map_view:true,webhooks_manage:false,flappy_access:false},
+  Senechaux:{members_view:true,members_add:false,members_edit:false,weapons_view:true,weapons_add:true,weapons_delete:false,debts_view:true,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:true,storage_manage:true,four_view:true,four_buy:false,four_sell:true,four_manage:false,announcements_view:true,announcements_post:true,chat_read:true,chat_write:true,logs_view:false,map_view:true,items_view:true,items_manage:false,webhooks_manage:false,flappy_access:false},
+  Syndic:{members_view:true,members_add:false,members_edit:false,weapons_view:true,weapons_add:false,weapons_delete:false,debts_view:true,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:true,storage_manage:false,four_view:true,four_buy:false,four_sell:true,four_manage:false,announcements_view:true,announcements_post:false,chat_read:true,chat_write:true,logs_view:false,map_view:true,items_view:true,items_manage:false,webhooks_manage:false,flappy_access:false},
+  Collaborateur:{members_view:true,members_add:false,members_edit:false,weapons_view:false,weapons_add:false,weapons_delete:false,debts_view:false,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:false,storage_manage:false,four_view:true,four_buy:false,four_sell:false,four_manage:false,announcements_view:true,announcements_post:false,chat_read:true,chat_write:true,logs_view:false,map_view:true,items_view:false,items_manage:false,webhooks_manage:false,flappy_access:false},
 };
 
 const gradeColor=g=>({Heritier:'#e87060',Regent:'#c9a84c',Senechaux:'#00d084',Syndic:'#60a5fa',Collaborateur:'#7a90a8'}[g]||'#7a90a8');
@@ -797,7 +799,7 @@ function Vehicles({currentUser,perms}){
 }
 
 // ─── FOUR ─────────────────────────────────────────────────────────────────────
-const catColors={Drogue:'var(--green)',Arme:'#e87060',Munitions:'#f97316',Matériel:'#60a5fa',Nourriture:'#84cc16',Alcool:'#f59e0b',Electronique:'#a78bfa',Luxe:'var(--gold)',Argent:'var(--gold)',Autre:'var(--txtm)',Objets:'#a78bfa'};
+const catColors={Drogue:'var(--green)',Arme:'#e87060',Munitions:'#f97316',Matériel:'#60a5fa',Electronique:'#a78bfa',Nourriture:'#84cc16',Alcool:'#f59e0b',Luxe:'var(--gold)',Argent:'var(--gold)',Autre:'var(--txtm)',Objets:'#a78bfa'};
 
 // Étiquette produit four
 function Etiquette({item,warehouses,storageItems,perms,onBuy,onSell,onEdit,onDel}){
@@ -1845,12 +1847,14 @@ function Storage({currentUser,perms}){
   const[itemForm,setItemForm]=useState({name:'',category:'Matériel',qty:1,warehouseId:'',note:'',imageUrl:''});
   const[filter,setFilter]=useState('all');
   const[search,setSearch]=useState('');
+  const[itemsDb,setItemsDb]=useState([]);
 
   useEffect(()=>{
     const u1=fbLsn('warehouses',setWarehouses);
     const u2=fbLsn('storage_items',setItems);
     const u3=fbLsn('four_items',setFourItems);
-    return()=>{u1();u2();u3();};
+    const u4=fbLsn('items_db',setItemsDb);
+    return()=>{u1();u2();u3();u4();};
   },[]);
 
   if(!perms.storage_view)return<AccessDenied/>;
@@ -2078,7 +2082,17 @@ function Storage({currentUser,perms}){
         <div style={{display:'flex',gap:16}}>
           <div style={{flex:1}}>
             <div className="fg"><label className="lbl">ENTREPÔT</label><select className="sel" value={itemForm.warehouseId} onChange={e=>setItemForm({...itemForm,warehouseId:e.target.value})}><option value="">Sélectionner...</option>{sortedWarehouses.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
-            <div className="fg"><label className="lbl">OBJET</label><input className="inp" value={itemForm.name} onChange={e=>setItemForm({...itemForm,name:e.target.value})} autoFocus/></div>
+            <div className="fg"><label className="lbl">OBJET</label><input className="inp" value={itemForm.name} onChange={e=>{
+              const name=e.target.value;
+              const match=itemsDb.find(d=>d.name.toLowerCase()===name.toLowerCase());
+              if(match){setItemForm({...itemForm,name,category:match.category,imageUrl:match.imageUrl||itemForm.imageUrl});}
+              else{setItemForm({...itemForm,name});}
+            }} autoFocus/></div>
+            {itemForm.name&&itemsDb.find(d=>d.name.toLowerCase()===itemForm.name.toLowerCase())&&(
+              <div style={{background:'var(--accf)',border:'1px solid rgba(200,202,212,.2)',borderRadius:'var(--r)',padding:'7px 10px',fontSize:10,fontFamily:'var(--fc)',color:'var(--acc)',marginBottom:10}}>
+                ✓ Item trouvé dans la DB — catégorie et image auto-remplies
+              </div>
+            )}
             <div style={{background:'var(--greenf)',border:'1px solid rgba(0,208,132,.2)',borderRadius:'var(--r)',padding:'7px 10px',fontSize:10,fontFamily:'var(--fc)',color:'var(--green)',marginBottom:10}}>
               💡 Si le nom correspond à un produit du Four, le stock sera synchronisé automatiquement.
             </div>
@@ -2510,6 +2524,140 @@ function LoginScreen({onLogin}){
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 const PAGE_NAMES={dashboard:'Dashboard',members:'Membres',weapons:'Armes',debts:'Dettes',vehicles:'Véhicules',chat:'Messagerie',map:'Carte',announcements:'Annonces',logs:'Logs',permissions:'Permissions',accounts:'Comptes',storage:'Stockage',four:'Four — Économie',webhooks:'Webhooks Discord',profile:'Mon Profil',flappy:'🐦 Flappy VMF'};
 
+
+// ─── ITEMS DB ─────────────────────────────────────────────────────────────────
+function ItemsDB({currentUser,perms}){
+  const[items,setItems]=useState([]);
+  const[search,setSearch]=useState('');
+  const[filterCat,setFilterCat]=useState('all');
+  const[showAdd,setShowAdd]=useState(false);
+  const[editItem,setEditItem]=useState(null);
+  const[form,setForm]=useState({name:'',category:'Drogue',imageUrl:''});
+  const canManage=perms.items_manage||currentUser.grade==='Heritier'||currentUser.grade==='Regent';
+
+  useEffect(()=>{return fbLsn('items_db',setItems);},[]);
+
+  if(!perms.items_view)return<AccessDenied/>;
+
+  const resetForm=()=>setForm({name:'',category:'Drogue',imageUrl:''});
+
+  const addItem=async()=>{
+    if(!form.name.trim())return;
+    const dup=items.find(i=>i.name.toLowerCase()===form.name.trim().toLowerCase());
+    if(dup){alert('Un item avec ce nom existe déjà.');return;}
+    await fbAdd('items_db',{name:form.name.trim(),category:form.category,imageUrl:form.imageUrl||''});
+    pushLog('items',`Item ajouté à la DB: ${form.name}`,'info');
+    setShowAdd(false);resetForm();
+  };
+
+  const saveEdit=async()=>{
+    if(!editItem||!editItem.name.trim())return;
+    await fbSet('items_db',editItem.id,{name:editItem.name.trim(),category:editItem.category,imageUrl:editItem.imageUrl||''});
+    pushLog('items',`Item modifié: ${editItem.name}`,'info');
+    setEditItem(null);
+  };
+
+  const delItem=async(id,name)=>{
+    if(!window.confirm(`Supprimer "${name}" de la DB ?`))return;
+    await fbDel('items_db',id);
+    pushLog('items',`Item supprimé: ${name}`,'warn');
+  };
+
+  const visible=items.filter(i=>{
+    if(filterCat!=='all'&&i.category!==filterCat)return false;
+    if(search&&!i.name.toLowerCase().includes(search.toLowerCase()))return false;
+    return true;
+  }).sort((a,b)=>a.name.localeCompare(b.name));
+
+  return(
+    <div className="pe">
+      {/* Stats */}
+      <div className="sgrid" style={{marginBottom:14}}>
+        <div className="sc b"><div className="sl">Total items</div><div className="sv">{items.length}</div><span className="si">📦</span></div>
+        <div className="sc g"><div className="sl">Catégories actives</div><div className="sv">{[...new Set(items.map(i=>i.category))].length}</div><span className="si">🏷</span></div>
+        <div className="sc gd"><div className="sl">Avec image</div><div className="sv">{items.filter(i=>i.imageUrl).length}</div><span className="si">🖼</span></div>
+      </div>
+
+      <div className="card">
+        <div className="ch">
+          <span className="ct">📦 Base de données Items</span>
+          <span className="csub">{visible.length}/{items.length}</span>
+          {canManage&&<button className="btn btn-p btn-sm" style={{marginLeft:8}} onClick={()=>{resetForm();setShowAdd(true);}}>+ Ajouter</button>}
+        </div>
+        {/* Filtres */}
+        <div style={{padding:'8px 14px',borderBottom:'1px solid var(--bdr)',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+          <button onClick={()=>setFilterCat('all')} style={{padding:'3px 10px',fontSize:10,fontFamily:'var(--fc)',fontWeight:600,borderRadius:'var(--r)',cursor:'pointer',border:`1px solid ${filterCat==='all'?'var(--acc)':'var(--bdr)'}`,background:filterCat==='all'?'var(--accf)':'var(--bgc)',color:filterCat==='all'?'var(--acc)':'var(--txt2)',transition:'var(--tr)'}}>Tout</button>
+          {ITEM_CATS.map(c=>{const cc=catColors[c]||'var(--txtm)';return(<button key={c} onClick={()=>setFilterCat(c)} style={{padding:'3px 10px',fontSize:10,fontFamily:'var(--fc)',fontWeight:600,borderRadius:'var(--r)',cursor:'pointer',border:`1px solid ${filterCat===c?cc:'var(--bdr)'}`,background:filterCat===c?`${cc}22`:'var(--bgc)',color:filterCat===c?cc:'var(--txt2)',transition:'var(--tr)'}}>{c}</button>);})}
+          <input className="searchbar" style={{marginLeft:'auto',width:220}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Rechercher..."/>
+        </div>
+
+        {/* Grille */}
+        {visible.length===0
+          ?<div style={{padding:40,textAlign:'center',color:'var(--txtm)',fontSize:12,fontFamily:'var(--fc)'}}>Aucun item — {canManage?'cliquez sur + Ajouter pour commencer':'aucun item enregistré'}</div>
+          :<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10,padding:14}}>
+            {visible.map(item=>{
+              const cc=catColors[item.category]||'var(--txtm)';
+              return(
+                <div key={item.id} style={{background:'var(--bgc)',border:'1px solid var(--bdr)',borderRadius:10,overflow:'hidden',transition:'var(--tr)',cursor:'default'}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=cc;}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--bdr)';}}>
+                  <div style={{height:3,background:cc}}/>
+                  <div style={{height:90,background:'var(--bg3)',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
+                    {item.imageUrl
+                      ?<img src={item.imageUrl} alt={item.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                      :<div style={{fontSize:30}}>📦</div>}
+                  </div>
+                  <div style={{padding:'8px 10px'}}>
+                    <div style={{fontSize:12,fontWeight:700,color:'var(--txt)',marginBottom:4,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={item.name}>{item.name}</div>
+                    <span style={{fontSize:9,fontFamily:'var(--fc)',fontWeight:700,color:cc,background:`${cc}18`,border:`1px solid ${cc}44`,borderRadius:3,padding:'1px 6px',textTransform:'uppercase',letterSpacing:'.06em'}}>{item.category}</span>
+                  </div>
+                  {canManage&&<div style={{padding:'0 10px 8px',display:'flex',gap:4}}>
+                    <button className="btn btn-s btn-sm" style={{flex:1,fontSize:10}} onClick={()=>setEditItem({...item})}>✏</button>
+                    <button className="btn btn-d btn-sm" style={{fontSize:10}} onClick={()=>delItem(item.id,item.name)}>🗑</button>
+                  </div>}
+                </div>
+              );
+            })}
+          </div>
+        }
+      </div>
+
+      {/* Modal ajouter */}
+      {showAdd&&<Modal title="Nouvel Item" onClose={()=>setShowAdd(false)} footer={<><button className="btn btn-s" onClick={()=>setShowAdd(false)}>Annuler</button><button className="btn btn-p" onClick={addItem}>Enregistrer</button></>}>
+        <div style={{display:'flex',gap:14,alignItems:'flex-start'}}>
+          <div style={{width:80,flexShrink:0}}>
+            <div style={{height:80,background:'var(--bg3)',border:'1px dashed var(--bdrb)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',marginBottom:6}}>
+              {form.imageUrl?<img src={form.imageUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<div style={{fontSize:26}}>📦</div>}
+            </div>
+          </div>
+          <div style={{flex:1}}>
+            <div className="fg"><label className="lbl">NOM *</label><input className="inp" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} autoFocus placeholder="ex: Methamphetamine"/></div>
+            <div className="fg"><label className="lbl">CATÉGORIE</label><select className="sel" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{ITEM_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
+            <div className="fg"><label className="lbl">IMAGE URL</label><input className="inp" value={form.imageUrl} onChange={e=>setForm({...form,imageUrl:e.target.value})} placeholder="https://..."/></div>
+          </div>
+        </div>
+      </Modal>}
+
+      {/* Modal modifier */}
+      {editItem&&<Modal title={`Modifier — ${editItem.name}`} onClose={()=>setEditItem(null)} footer={<><button className="btn btn-s" onClick={()=>setEditItem(null)}>Annuler</button><button className="btn btn-p" onClick={saveEdit}>Sauvegarder</button></>}>
+        <div style={{display:'flex',gap:14,alignItems:'flex-start'}}>
+          <div style={{width:80,flexShrink:0}}>
+            <div style={{height:80,background:'var(--bg3)',border:'1px dashed var(--bdrb)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',marginBottom:6}}>
+              {editItem.imageUrl?<img src={editItem.imageUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<div style={{fontSize:26}}>📦</div>}
+            </div>
+          </div>
+          <div style={{flex:1}}>
+            <div className="fg"><label className="lbl">NOM</label><input className="inp" value={editItem.name} onChange={e=>setEditItem({...editItem,name:e.target.value})} autoFocus/></div>
+            <div className="fg"><label className="lbl">CATÉGORIE</label><select className="sel" value={editItem.category} onChange={e=>setEditItem({...editItem,category:e.target.value})}>{ITEM_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
+            <div className="fg"><label className="lbl">IMAGE URL</label><input className="inp" value={editItem.imageUrl||''} onChange={e=>setEditItem({...editItem,imageUrl:e.target.value})} placeholder="https://..."/></div>
+          </div>
+        </div>
+      </Modal>}
+    </div>
+  );
+}
+
+
 const NAV_BASE=[
   {section:'Général',items:[
     {id:'dashboard',ic:'⬡',label:'Dashboard'},
@@ -2526,6 +2674,7 @@ const NAV_BASE=[
     {id:'weapons',ic:'🗡',label:'Armes'},
     {id:'vehicles',ic:'🚗',label:'Véhicules'},
     {id:'storage',ic:'🏭',label:'Stockage'},
+    {id:'items',ic:'📦',label:'Items DB'},
   ]},
   {section:'Admin',items:[
     {id:'logs',ic:'📋',label:'Logs'},
@@ -2603,6 +2752,7 @@ function App(){
       case 'permissions':return<Permissions currentUser={currentUser}/>;
       case 'accounts':return<AccountManager currentUser={currentUser}/>;
       case 'storage':return<Storage currentUser={currentUser} perms={perms}/>;
+      case 'items':return<ItemsDB currentUser={currentUser} perms={perms}/>;
       case 'four':return<Four currentUser={currentUser} perms={perms}/>;
       case 'webhooks':return<Webhooks currentUser={currentUser} perms={perms}/>;
       case 'profile':return<Profile currentUser={currentUser} setCurrentUser={setCurrentUser}/>;
