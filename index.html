@@ -198,7 +198,7 @@ const fmtTime=()=>new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-d
 
 const GRADES=['Collaborateur','Syndic','Senechaux','Regent','Heritier'];
 const WEAPON_TYPES=['cambu','couteau','hache','katana','machette','marteau','pied de biche','petoire','queue de billard','queue de golf','revolver','batte'];
-const ITEM_CATS=['Arme','Document','Drogue','Matériel','Autre','Argent','Véhicule'];
+const ITEM_CATS=['Drogue','Matériel','Autre'];
 // Catégories simplifiées pour le Four
 const FOUR_CATS=['Drogue','Matériel','Objets','Autre'];
 const FOUR_CATS_ALL=['Drogue','Arme','Munitions','Matériel','Nourriture','Alcool','Electronique','Luxe','Argent','Autre','Objets'];
@@ -336,7 +336,7 @@ function FlappyBird(){
     bird:{y:150,vy:0},pipes:[],score:0,best:0,frame:0,status:'idle'
   });
   const rafRef=useRef(null);
-  const W=380,H=480,GAP=175,PIPE_W=48,SPEED=1.8,GRAV=0.28,JUMP=-6.2;
+  const W=380,H=480,GAP=175,PIPE_W=48,SPEED=1.8,GRAV=0.19,JUMP=-5.5;
 
   const resetPipes=()=>[
     {x:W+60,top:80+Math.random()*(H-GAP-120)},
@@ -546,7 +546,8 @@ function Members({currentUser,perms}){
     setEditM(null);
   };
   const delMember=async id=>{await fbDel('members',id);pushLog('suppression',`Membre supprimé par ${currentUser.pseudo}`,'danger','membres');};
-  const filtered=(filter==='all'?members:members.filter(m=>m.grade===filter)).sort((a,b)=>a.pseudo.localeCompare(b.pseudo));
+  const GRADE_ORDER={Heritier:0,Regent:1,Senechaux:2,Syndic:3,Collaborateur:4};
+  const filtered=(filter==='all'?members:members.filter(m=>m.grade===filter)).sort((a,b)=>{const gd=(GRADE_ORDER[a.grade]??5)-(GRADE_ORDER[b.grade]??5);return gd!==0?gd:a.pseudo.localeCompare(b.pseudo);});
   return(
     <div className="pe">
       <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,flexWrap:'wrap'}}>
@@ -1254,87 +1255,267 @@ function Chat({currentUser,perms}){
 
 // ─── MAP ─────────────────────────────────────────────────────────────────────
 function MapPage({perms}){
-  const[zone,setZone]=useState('ls');
-  const[bg,setBg]=useState('satellite');
+  const canvasRef=useRef(null);
+  const containerRef=useRef(null);
+  const stateRef=useRef({x:0,y:0,zoom:1,dragging:false,lastX:0,lastY:0,imgLoaded:false,img:null,markers:[]});
+  const rafRef=useRef(null);
+  const[zoom,setZoom]=useState(1);
+  const[coords,setCoords]=useState({x:0,y:0});
+  const[markers,setMarkers]=useState([]);
+  const[addMode,setAddMode]=useState(false);
+  const[selMarker,setSelMarker]=useState(null);
+  const[markerForm,setMarkerForm]=useState({label:'',color:'#e87060',icon:'📍'});
+  const[imgStatus,setImgStatus]=useState('loading');
+
+  // GTA V map — use a public image CDN that allows cross-origin
+  const MAP_URL='https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/GTA_V_Map.png/1024px-GTA_V_Map.png';
+  const MAP_W=1024,MAP_H=1024;
+
+  const MARKER_ICONS=['📍','🏭','🏠','🚗','💰','⚠️','🎯','💊','🗡','🏪','🔴','🟡','🟢'];
+  const MARKER_COLORS=['#e87060','#c9a84c','#00d084','#60a5fa','#a78bfa','#f97316','#ec4899','#c8cad4'];
+
   if(!perms.map_view)return<AccessDenied/>;
-  const mapUrl=`https://gtaweb.eu/en/gtao-map#${zone}&bg=${bg}`;
-  const ZONES=[
-    {id:'ls',label:'Los Santos'},
-    {id:'sandy',label:'Sandy Shores'},
-    {id:'paleto',label:'Paleto Bay'},
-    {id:'cayo',label:'Cayo Perico'},
-  ];
-  const BG_MODES=[
-    {id:'satellite',label:'🛰 Satellite'},
-    {id:'map',label:'🗺 Carte'},
-    {id:'dark',label:'🌙 Dark'},
-  ];
+
+  const draw=useCallback(()=>{
+    const canvas=canvasRef.current;if(!canvas)return;
+    const ctx=canvas.getContext('2d');
+    const s=stateRef.current;
+    const W=canvas.width,H=canvas.height;
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#0a0c0e';ctx.fillRect(0,0,W,H);
+    // grid
+    ctx.strokeStyle='rgba(42,42,48,0.5)';ctx.lineWidth=1;
+    const gs=50*s.zoom;const ox=((s.x%gs)+gs)%gs;const oy=((s.y%gs)+gs)%gs;
+    for(let x2=ox-gs;x2<W+gs;x2+=gs){ctx.beginPath();ctx.moveTo(x2,0);ctx.lineTo(x2,H);ctx.stroke();}
+    for(let y2=oy-gs;y2<H+gs;y2+=gs){ctx.beginPath();ctx.moveTo(0,y2);ctx.lineTo(W,y2);ctx.stroke();}
+    if(s.img&&s.imgLoaded){
+      const sw=MAP_W*s.zoom,sh=MAP_H*s.zoom;
+      ctx.drawImage(s.img,s.x,s.y,sw,sh);
+    }
+    // markers
+    s.markers.forEach((m,idx)=>{
+      const mx=s.x+m.nx*MAP_W*s.zoom;
+      const my=s.y+m.ny*MAP_H*s.zoom;
+      ctx.save();
+      ctx.shadowColor=m.color||'#e87060';ctx.shadowBlur=8;
+      ctx.beginPath();ctx.arc(mx,my,10,0,Math.PI*2);
+      ctx.fillStyle=(m.color||'#e87060')+'55';ctx.fill();
+      ctx.strokeStyle=m.color||'#e87060';ctx.lineWidth=2;ctx.stroke();
+      ctx.restore();
+      ctx.font='16px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(m.icon||'📍',mx,my);
+      if(m.label){
+        ctx.fillStyle='rgba(14,14,16,0.85)';
+        const tw=ctx.measureText(m.label).width;
+        ctx.fillRect(mx-tw/2-4,my+14,tw+8,16);
+        ctx.fillStyle='#f0f0f5';ctx.font='bold 10px JetBrains Mono,monospace';
+        ctx.textAlign='center';ctx.fillText(m.label,mx,my+22);
+      }
+    });
+    if(s.imgLoaded===false&&s.img===null){
+      ctx.fillStyle='#9090a0';ctx.font='14px Syne,sans-serif';ctx.textAlign='center';
+      ctx.fillText('Chargement de la carte...',W/2,H/2);
+    }
+  },[]);
+
+  useEffect(()=>{
+    const s=stateRef.current;
+    const img=new Image();img.crossOrigin='anonymous';
+    img.onload=()=>{
+      s.img=img;s.imgLoaded=true;
+      // center map initially
+      const canvas=canvasRef.current;
+      if(canvas){
+        s.x=(canvas.width-MAP_W*s.zoom)/2;
+        s.y=(canvas.height-MAP_H*s.zoom)/2;
+      }
+      setImgStatus('ok');draw();
+    };
+    img.onerror=()=>{s.imgLoaded=false;s.img=null;setImgStatus('error');draw();};
+    img.src=MAP_URL;
+    draw();
+  },[draw]);
+
+  const clamp=(val,min,max)=>Math.max(min,Math.min(max,val));
+
+  const resizeCanvas=useCallback(()=>{
+    const canvas=canvasRef.current;const cont=containerRef.current;
+    if(!canvas||!cont)return;
+    canvas.width=cont.clientWidth;canvas.height=cont.clientHeight;
+    draw();
+  },[draw]);
+
+  useEffect(()=>{
+    resizeCanvas();
+    const ro=new ResizeObserver(resizeCanvas);
+    if(containerRef.current)ro.observe(containerRef.current);
+    return()=>ro.disconnect();
+  },[resizeCanvas]);
+
+  // sync markers to stateRef
+  useEffect(()=>{stateRef.current.markers=markers;},[markers]);
+
+  const onWheel=useCallback(e=>{
+    e.preventDefault();
+    const s=stateRef.current;const canvas=canvasRef.current;if(!canvas)return;
+    const rect=canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+    const delta=e.deltaY>0?0.85:1.18;
+    const nz=clamp(s.zoom*delta,0.15,4);
+    // zoom around mouse
+    s.x=mx-(mx-s.x)*(nz/s.zoom);
+    s.y=my-(my-s.y)*(nz/s.zoom);
+    s.zoom=nz;setZoom(nz);draw();
+  },[draw]);
+
+  const onMouseDown=useCallback(e=>{
+    if(addMode){
+      const s=stateRef.current;const canvas=canvasRef.current;if(!canvas)return;
+      const rect=canvas.getBoundingClientRect();
+      const cx=e.clientX-rect.left,cy=e.clientY-rect.top;
+      const nx=(cx-s.x)/(MAP_W*s.zoom);
+      const ny=(cy-s.y)/(MAP_H*s.zoom);
+      if(nx>=0&&nx<=1&&ny>=0&&ny<=1){
+        const nm={id:Date.now(),nx,ny,label:markerForm.label||'Marqueur',color:markerForm.color,icon:markerForm.icon};
+        setMarkers(prev=>[...prev,nm]);setAddMode(false);draw();
+      }
+      return;
+    }
+    const s=stateRef.current;
+    s.dragging=true;s.lastX=e.clientX;s.lastY=e.clientY;
+  },[addMode,markerForm,draw]);
+
+  const onMouseMove=useCallback(e=>{
+    const s=stateRef.current;if(!s.dragging)return;
+    s.x+=e.clientX-s.lastX;s.y+=e.clientY-s.lastY;
+    s.lastX=e.clientX;s.lastY=e.clientY;
+    const mx=e.clientX;const my=e.clientY;
+    const canvas=canvasRef.current;if(canvas){const r=canvas.getBoundingClientRect();setCoords({x:Math.round((mx-r.left-s.x)/(MAP_W*s.zoom)*100),y:Math.round((my-r.top-s.y)/(MAP_H*s.zoom)*100)});}
+    draw();
+  },[draw]);
+
+  const onMouseUp=useCallback(()=>{stateRef.current.dragging=false;},[]);
+
+  const onTouchStart=useCallback(e=>{
+    const s=stateRef.current;
+    if(e.touches.length===1){s.dragging=true;s.lastX=e.touches[0].clientX;s.lastY=e.touches[0].clientY;}
+  },[]);
+  const onTouchMove=useCallback(e=>{
+    e.preventDefault();
+    const s=stateRef.current;
+    if(e.touches.length===1&&s.dragging){
+      s.x+=e.touches[0].clientX-s.lastX;s.y+=e.touches[0].clientY-s.lastY;
+      s.lastX=e.touches[0].clientX;s.lastY=e.touches[0].clientY;draw();
+    }
+  },[draw]);
+
+  useEffect(()=>{
+    const canvas=canvasRef.current;if(!canvas)return;
+    canvas.addEventListener('wheel',onWheel,{passive:false});
+    canvas.addEventListener('mousemove',onMouseMove);
+    canvas.addEventListener('mousedown',onMouseDown);
+    canvas.addEventListener('mouseup',onMouseUp);
+    canvas.addEventListener('mouseleave',onMouseUp);
+    canvas.addEventListener('touchstart',onTouchStart,{passive:false});
+    canvas.addEventListener('touchmove',onTouchMove,{passive:false});
+    canvas.addEventListener('touchend',onMouseUp);
+    return()=>{
+      canvas.removeEventListener('wheel',onWheel);
+      canvas.removeEventListener('mousemove',onMouseMove);
+      canvas.removeEventListener('mousedown',onMouseDown);
+      canvas.removeEventListener('mouseup',onMouseUp);
+      canvas.removeEventListener('mouseleave',onMouseUp);
+      canvas.removeEventListener('touchstart',onTouchStart);
+      canvas.removeEventListener('touchmove',onTouchMove);
+      canvas.removeEventListener('touchend',onMouseUp);
+    };
+  },[onWheel,onMouseMove,onMouseDown,onMouseUp,onTouchStart,onTouchMove]);
+
+  const resetView=()=>{
+    const s=stateRef.current;const canvas=canvasRef.current;if(!canvas)return;
+    s.zoom=1;s.x=(canvas.width-MAP_W)/2;s.y=(canvas.height-MAP_H)/2;setZoom(1);draw();
+  };
+  const zoomIn=()=>{const s=stateRef.current;const canvas=canvasRef.current;if(!canvas)return;const nz=clamp(s.zoom*1.3,0.15,4);const cx=canvas.width/2,cy=canvas.height/2;s.x=cx-(cx-s.x)*(nz/s.zoom);s.y=cy-(cy-s.y)*(nz/s.zoom);s.zoom=nz;setZoom(nz);draw();};
+  const zoomOut=()=>{const s=stateRef.current;const canvas=canvasRef.current;if(!canvas)return;const nz=clamp(s.zoom*0.77,0.15,4);const cx=canvas.width/2,cy=canvas.height/2;s.x=cx-(cx-s.x)*(nz/s.zoom);s.y=cy-(cy-s.y)*(nz/s.zoom);s.zoom=nz;setZoom(nz);draw();};
+  const delMarker=id=>{setMarkers(prev=>prev.filter(m=>m.id!==id));setSelMarker(null);draw();};
+
   return(
-    <div className="pe" style={{height:'calc(100vh - var(--th) - 40px)',display:'flex',flexDirection:'column',gap:10}}>
-      {/* Controls */}
-      <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',flexShrink:0}}>
-        <div style={{display:'flex',gap:5}}>
-          {ZONES.map(z=><button key={z.id} className={`btn btn-sm ${zone===z.id?'btn-p':'btn-s'}`} onClick={()=>setZone(z.id)}>{z.label}</button>)}
+    <div className="pe" style={{height:'calc(100vh - var(--th) - 40px)',display:'flex',flexDirection:'column',gap:8}}>
+      {/* Toolbar */}
+      <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0,flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:4}}>
+          <button className="btn btn-s btn-sm" onClick={zoomOut} title="Zoom -">−</button>
+          <button className="btn btn-s btn-sm" style={{minWidth:52,fontFamily:'var(--fc)',fontSize:10}} onClick={resetView}>{Math.round(zoom*100)}%</button>
+          <button className="btn btn-s btn-sm" onClick={zoomIn} title="Zoom +">+</button>
         </div>
-        <div style={{display:'flex',gap:5,marginLeft:'auto'}}>
-          {BG_MODES.map(m=><button key={m.id} className={`btn btn-sm ${bg===m.id?'btn-p':'btn-s'}`} onClick={()=>setBg(m.id)}>{m.label}</button>)}
-        </div>
-      </div>
-      {/* Map container */}
-      <div style={{flex:1,borderRadius:'var(--rl)',overflow:'hidden',border:'1px solid var(--bdr)',background:'#0a0a0c',display:'flex',flexDirection:'column',position:'relative'}}>
-        <div style={{padding:'8px 14px',borderBottom:'1px solid var(--bdr)',background:'var(--bg3)',fontSize:11,fontFamily:'var(--fc)',color:'var(--txtm)',display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-          <span>🗺</span><span>GTA Online Map — Los Santos & Blaine County</span>
-          <a href={mapUrl} target="_blank" rel="noopener noreferrer"
-            style={{marginLeft:'auto',color:'var(--acc)',fontSize:10,textDecoration:'none',background:'var(--accf)',border:'1px solid rgba(200,202,212,.2)',borderRadius:4,padding:'2px 8px'}}>
-            Ouvrir dans un nouvel onglet ↗
-          </a>
-        </div>
-        {/* Map preview with open button */}
-        <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:20,padding:30,background:'radial-gradient(ellipse at center,#111214 0%,#0a0a0c 100%)'}}>
-          {/* GTA map visual */}
-          <div style={{position:'relative',width:'100%',maxWidth:500}}>
-            <div style={{background:'var(--bg2)',border:'1px solid var(--bdrb)',borderRadius:12,padding:24,textAlign:'center',position:'relative',overflow:'hidden'}}>
-              <div style={{position:'absolute',inset:0,opacity:.04,backgroundImage:'repeating-linear-gradient(0deg,transparent,transparent 20px,var(--bdr) 20px,var(--bdr) 21px),repeating-linear-gradient(90deg,transparent,transparent 20px,var(--bdr) 20px,var(--bdr) 21px)'}}></div>
-              <div style={{position:'relative',zIndex:1}}>
-                <div style={{fontSize:48,marginBottom:10}}>🗺</div>
-                <div style={{fontSize:16,fontWeight:800,color:'var(--txt)',letterSpacing:'.08em',marginBottom:6}}>GTA ONLINE MAP</div>
-                <div style={{fontSize:11,fontFamily:'var(--fc)',color:'var(--txtm)',marginBottom:6}}>Los Santos & Blaine County</div>
-                <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:18,flexWrap:'wrap'}}>
-                  <span style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 7px'}}>
-                    Zone: {ZONES.find(z2=>z2.id===zone)?.label}
-                  </span>
-                  <span style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',background:'var(--bg3)',border:'1px solid var(--bdr)',borderRadius:4,padding:'2px 7px'}}>
-                    Mode: {BG_MODES.find(m=>m.id===bg)?.label}
-                  </span>
-                </div>
-                <div style={{display:'flex',flexDirection:'column',gap:8,maxWidth:280,margin:'0 auto'}}>
-                  <a href={mapUrl} target="_blank" rel="noopener noreferrer"
-                    style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'var(--acc)',color:'#0e0e10',borderRadius:'var(--r)',padding:'11px 20px',fontSize:13,fontWeight:700,textDecoration:'none',letterSpacing:'.04em',transition:'var(--tr)'}}>
-                    🗺 Ouvrir la Carte Complète
-                  </a>
-                  <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',textAlign:'center',lineHeight:1.5}}>
-                    La carte s'ouvre dans un nouvel onglet.<br/>
-                    <span style={{color:'#e87060'}}>Les iframes externes sont bloquées par la politique de sécurité du site.</span>
-                  </div>
-                </div>
-              </div>
+        <button className={`btn btn-sm ${addMode?'btn-g':'btn-s'}`} onClick={()=>setAddMode(v=>!v)} title="Placer un marqueur">
+          {addMode?'🖱 Cliquer sur la carte':'📍 Ajouter marqueur'}
+        </button>
+        {addMode&&(
+          <div style={{display:'flex',gap:6,alignItems:'center',background:'var(--bgc)',border:'1px solid var(--green)',borderRadius:'var(--r)',padding:'4px 10px'}}>
+            <input className="inp" style={{width:120,padding:'4px 8px',fontSize:11}} value={markerForm.label} onChange={e=>setMarkerForm({...markerForm,label:e.target.value})} placeholder="Nom du lieu..."/>
+            <div style={{display:'flex',gap:3}}>
+              {MARKER_ICONS.map(ic=><button key={ic} onClick={()=>setMarkerForm({...markerForm,icon:ic})}
+                style={{background:markerForm.icon===ic?'var(--accf)':'transparent',border:`1px solid ${markerForm.icon===ic?'var(--acc)':'transparent'}`,borderRadius:4,padding:'2px 4px',cursor:'pointer',fontSize:14}}>{ic}</button>)}
+            </div>
+            <div style={{display:'flex',gap:3}}>
+              {MARKER_COLORS.map(c=><div key={c} onClick={()=>setMarkerForm({...markerForm,color:c})}
+                style={{width:16,height:16,borderRadius:'50%',background:c,cursor:'pointer',border:`2px solid ${markerForm.color===c?'#fff':'transparent'}`,flexShrink:0}}/>)}
             </div>
           </div>
-          {/* Quick links */}
-          <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
-            {[
-              {label:'🏙 Los Santos',url:'https://gtaweb.eu/en/gtao-map#ls&bg=satellite'},
-              {label:'🏜 Sandy Shores',url:'https://gtaweb.eu/en/gtao-map#sandy&bg=satellite'},
-              {label:'🌲 Paleto Bay',url:'https://gtaweb.eu/en/gtao-map#paleto&bg=satellite'},
-              {label:'🏝 Cayo Perico',url:'https://gtaweb.eu/en/gtao-map#cayo&bg=satellite'},
-            ].map(l=>(
-              <a key={l.label} href={l.url} target="_blank" rel="noopener noreferrer"
-                style={{fontSize:11,background:'var(--bgc)',border:'1px solid var(--bdr)',borderRadius:'var(--r)',padding:'6px 12px',color:'var(--txt2)',textDecoration:'none',fontFamily:'var(--fc)',transition:'var(--tr)'}}>
-                {l.label}
-              </a>
-            ))}
+        )}
+        <div style={{marginLeft:'auto',fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>
+          {imgStatus==='loading'&&'⏳ Chargement...'}
+          {imgStatus==='error'&&<span style={{color:'#e87060'}}>⚠ Carte non chargée — vérifiez la connexion</span>}
+          {imgStatus==='ok'&&`${markers.length} marqueur${markers.length!==1?'s':''} • Scroll = zoom • Glisser = déplacer`}
+        </div>
+      </div>
+      {/* Map + sidebar */}
+      <div style={{flex:1,display:'flex',gap:8,minHeight:0}}>
+        {/* Canvas */}
+        <div ref={containerRef} style={{flex:1,borderRadius:'var(--rl)',overflow:'hidden',border:'1px solid var(--bdr)',position:'relative',cursor:addMode?'crosshair':'grab',background:'#0a0c0e'}}>
+          <canvas ref={canvasRef} style={{display:'block',width:'100%',height:'100%'}}/>
+          {imgStatus==='error'&&(
+            <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,pointerEvents:'none'}}>
+              <div style={{fontSize:36}}>🗺</div>
+              <div style={{fontSize:13,fontWeight:700,color:'var(--txt)'}}>Carte indisponible</div>
+              <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',textAlign:'center',maxWidth:280,lineHeight:1.6}}>
+                La carte satellite ne peut pas être chargée.<br/>
+                <a href="https://gtaweb.eu/en/gtao-map" target="_blank" rel="noopener noreferrer" style={{color:'var(--acc)',pointerEvents:'all'}}>Ouvrir gtaweb.eu ↗</a>
+              </div>
+            </div>
+          )}
+          {/* Zoom controls overlay */}
+          <div style={{position:'absolute',bottom:14,right:14,display:'flex',flexDirection:'column',gap:4}}>
+            <button className="btn btn-s" style={{width:32,height:32,padding:0,fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={zoomIn}>+</button>
+            <button className="btn btn-s" style={{width:32,height:32,padding:0,fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={zoomOut}>−</button>
+            <button className="btn btn-s" style={{width:32,height:32,padding:0,fontSize:12,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={resetView} title="Réinitialiser vue">⌂</button>
           </div>
         </div>
+        {/* Marker list */}
+        {markers.length>0&&(
+          <div style={{width:200,flexShrink:0,background:'var(--bgc)',border:'1px solid var(--bdr)',borderRadius:'var(--rl)',overflow:'hidden',display:'flex',flexDirection:'column'}}>
+            <div style={{padding:'10px 12px',borderBottom:'1px solid var(--bdr)',background:'var(--bg3)',fontSize:11,fontWeight:700,color:'var(--txt)'}}>📍 Marqueurs ({markers.length})</div>
+            <div style={{flex:1,overflowY:'auto'}}>
+              {markers.map(m=>(
+                <div key={m.id} style={{padding:'8px 12px',borderBottom:'1px solid var(--bdr)',display:'flex',alignItems:'center',gap:8,cursor:'pointer',background:selMarker===m.id?'var(--accf)':'transparent'}}
+                  onClick={()=>{
+                    const s=stateRef.current;const canvas=canvasRef.current;if(!canvas)return;
+                    const cx=canvas.width/2,cy=canvas.height/2;
+                    s.x=cx-m.nx*MAP_W*s.zoom;s.y=cy-m.ny*MAP_H*s.zoom;
+                    setSelMarker(m.id);draw();
+                  }}>
+                  <span style={{fontSize:16,flexShrink:0}}>{m.icon||'📍'}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:11,fontWeight:600,color:'var(--txt)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{m.label}</div>
+                    <div style={{width:24,height:3,borderRadius:2,background:m.color,marginTop:3}}></div>
+                  </div>
+                  <button style={{background:'none',border:'none',color:'var(--txtm)',cursor:'pointer',fontSize:13,flexShrink:0}} onClick={e=>{e.stopPropagation();delMarker(m.id);}}>🗑</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1583,42 +1764,53 @@ function Storage({currentUser,perms}){
           <div style={{fontSize:11,fontWeight:700,letterSpacing:'.1em',color:'var(--txt)',textTransform:'uppercase'}}>🏭 Entrepôts</div>
           {perms.storage_manage&&<button className="btn btn-p btn-sm" onClick={()=>setShowWh(true)}>+ Ajouter</button>}
         </div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:10}}>
-          {/* ALL tab */}
-          <div onClick={()=>setSelWh(null)} style={{cursor:'pointer',background:selWh===null?'var(--accf)':'var(--bgc)',border:`2px solid ${selWh===null?'var(--acc)':'var(--bdr)'}`,borderRadius:10,padding:'14px 16px',transition:'var(--tr)',position:'relative',overflow:'hidden'}}>
-            <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:selWh===null?'var(--acc)':'transparent',transition:'var(--tr)'}}></div>
-            <div style={{fontSize:22,marginBottom:6}}>🏭</div>
-            <div style={{fontSize:13,fontWeight:700,color:'var(--txt)',marginBottom:2}}>Tout afficher</div>
-            <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)'}}>{items.length} objets • {items.reduce((s,i)=>s+i.qty,0)} unités</div>
-          </div>
-          {sortedWarehouses.map(w=>{
-            const usage=whUsage(w.id);
-            const pct=Math.min(100,Math.round(usage/(w.capacity||50)*100));
-            const isActive=selWh===w.id;
-            return(
-              <div key={w.id} onClick={()=>setSelWh(isActive?null:w.id)}
-                style={{cursor:'pointer',background:isActive?'var(--accf)':'var(--bgc)',border:`2px solid ${isActive?w.color:'var(--bdr)'}`,borderRadius:10,padding:'14px 16px',transition:'var(--tr)',position:'relative',overflow:'hidden'}}>
-                <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:w.color,opacity:isActive?1:0.4,transition:'var(--tr)'}}></div>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
-                  <div style={{width:10,height:10,borderRadius:'50%',background:w.color,marginTop:2,flexShrink:0}}></div>
-                  <div style={{display:'flex',gap:3}} onClick={e=>e.stopPropagation()}>
-                    {perms.storage_manage&&<button className="btn btn-s btn-sm" style={{padding:'2px 6px',fontSize:10}} onClick={()=>setEditWh({...w})}>✏</button>}
-                    {perms.storage_manage&&currentUser.grade==='Heritier'&&<button className="btn btn-d btn-sm" style={{padding:'2px 6px',fontSize:10}} onClick={()=>delWh(w.id)}>🗑</button>}
-                  </div>
-                </div>
-                <div style={{fontSize:13,fontWeight:700,color:'var(--txt)',marginBottom:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{w.name}</div>
-                <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',marginBottom:8}}>{w.zone||'Sans zone'}</div>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:5}}>
-                  <span style={{fontSize:10,fontFamily:'var(--fc)',color:w.color,fontWeight:700}}>{usage}<span style={{color:'var(--txtm)',fontWeight:400}}>/{w.capacity}</span></span>
-                  <span style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>{pct}%</span>
-                </div>
-                <div style={{height:4,background:'var(--bg3)',borderRadius:2,overflow:'hidden'}}>
-                  <div style={{height:'100%',width:`${pct}%`,background:w.color,borderRadius:2,transition:'width .4s ease'}}></div>
-                </div>
+        {(()=>{
+          const total=sortedWarehouses.length+1; // +1 for "all" tab
+          const cols=total<=3?total:total<=6?Math.ceil(total/2)*2:total<=12?Math.ceil(total/3)*3:Math.ceil(total/4)*4;
+          const minW=total<=4?160:total<=8?130:total<=12?110:90;
+          return(
+            <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(total,total<=4?total:total<=8?4:total<=12?6:8)},1fr)`,gap:8}}>
+              {/* ALL tab */}
+              <div onClick={()=>setSelWh(null)} style={{cursor:'pointer',background:selWh===null?'var(--accf)':'var(--bgc)',border:`2px solid ${selWh===null?'var(--acc)':'var(--bdr)'}`,borderRadius:10,padding:total<=6?'14px 16px':'10px 12px',transition:'var(--tr)',position:'relative',overflow:'hidden',minWidth:0}}>
+                <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:selWh===null?'var(--acc)':'var(--bdrb)',transition:'var(--tr)'}}></div>
+                {total<=6&&<div style={{fontSize:18,marginBottom:4}}>🏭</div>}
+                <div style={{fontSize:total<=6?13:11,fontWeight:700,color:'var(--txt)',marginBottom:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>Tout</div>
+                <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{items.length} obj • {items.reduce((s,i)=>s+i.qty,0)} un.</div>
               </div>
-            );
-          })}
-        </div>
+              {sortedWarehouses.map(w=>{
+                const usage=whUsage(w.id);
+                const pct=Math.min(100,Math.round(usage/(w.capacity||50)*100));
+                const isActive=selWh===w.id;
+                const compact=total>6;
+                return(
+                  <div key={w.id} onClick={()=>setSelWh(isActive?null:w.id)}
+                    style={{cursor:'pointer',background:isActive?'var(--accf)':'var(--bgc)',border:`2px solid ${isActive?w.color:'var(--bdr)'}`,borderRadius:10,padding:compact?'10px 12px':'14px 16px',transition:'var(--tr)',position:'relative',overflow:'hidden',minWidth:0}}>
+                    <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:w.color,opacity:isActive?1:0.5,transition:'var(--tr)'}}></div>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:compact?3:6}}>
+                      <div style={{width:8,height:8,borderRadius:'50%',background:w.color,marginTop:2,flexShrink:0}}></div>
+                      {!compact&&<div style={{display:'flex',gap:3}} onClick={e=>e.stopPropagation()}>
+                        {perms.storage_manage&&<button className="btn btn-s btn-sm" style={{padding:'2px 6px',fontSize:10}} onClick={()=>setEditWh({...w})}>✏</button>}
+                        {perms.storage_manage&&currentUser.grade==='Heritier'&&<button className="btn btn-d btn-sm" style={{padding:'2px 6px',fontSize:10}} onClick={()=>delWh(w.id)}>🗑</button>}
+                      </div>}
+                      {compact&&<div style={{display:'flex',gap:2}} onClick={e=>e.stopPropagation()}>
+                        {perms.storage_manage&&<button className="btn btn-s btn-sm" style={{padding:'1px 4px',fontSize:9}} onClick={()=>setEditWh({...w})}>✏</button>}
+                      </div>}
+                    </div>
+                    <div style={{fontSize:compact?11:13,fontWeight:700,color:'var(--txt)',marginBottom:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{w.name}</div>
+                    {!compact&&<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',marginBottom:6}}>{w.zone||'Sans zone'}</div>}
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+                      <span style={{fontSize:9,fontFamily:'var(--fc)',color:w.color,fontWeight:700}}>{usage}<span style={{color:'var(--txtm)',fontWeight:400}}>/{w.capacity}</span></span>
+                      <span style={{fontSize:8,fontFamily:'var(--fc)',color:'var(--txtm)'}}>{pct}%</span>
+                    </div>
+                    <div style={{height:3,background:'var(--bg3)',borderRadius:2,overflow:'hidden'}}>
+                      <div style={{height:'100%',width:`${pct}%`,background:w.color,borderRadius:2,transition:'width .4s ease'}}></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Inventaire — full width big list */}
@@ -1631,7 +1823,13 @@ function Storage({currentUser,perms}){
         {/* Filters + search */}
         <div style={{padding:'8px 14px',borderBottom:'1px solid var(--bdr)',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
           <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-            {['all',...ITEM_CATS].map(c=><button key={c} className={`btn btn-sm ${filter===c?'btn-p':'btn-s'}`} onClick={()=>setFilter(c)} style={{fontSize:10,padding:'3px 8px'}}>{c==='all'?'Tout':c}</button>)}
+            {['all',...ITEM_CATS].map(c=>{
+              const cc=catColors[c]||'var(--txtm)';
+              return(<button key={c} onClick={()=>setFilter(c)}
+                style={{padding:'3px 10px',fontSize:10,fontFamily:'var(--fc)',fontWeight:600,borderRadius:'var(--r)',cursor:'pointer',border:`1px solid ${filter===c?cc:'var(--bdr)'}`,background:filter===c?`${cc}22`:'var(--bgc)',color:filter===c?cc:'var(--txt2)',transition:'var(--tr)'}}>
+                {c==='all'?'Tout':c}
+              </button>);
+            })}
           </div>
           <input className="searchbar" style={{marginLeft:'auto',width:220}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Rechercher..."/>
         </div>
@@ -1641,19 +1839,20 @@ function Storage({currentUser,perms}){
           :<div style={{maxHeight:'calc(100vh - 420px)',overflowY:'auto'}}>
             {visible.map(i=>{
               const wh=warehouses.find(w=>w.id===i.warehouseId);
+              const icc=catColors[i.category]||'var(--txtm)';
               return(
-                <div key={i.id} style={{display:'flex',alignItems:'center',gap:16,padding:'14px 18px',borderBottom:'1px solid var(--bdr)',transition:'var(--tr)',background:'transparent'}}
+                <div key={i.id} style={{display:'flex',alignItems:'center',gap:16,padding:'14px 18px',borderBottom:'1px solid var(--bdr)',transition:'var(--tr)',background:'transparent',borderLeft:`3px solid ${icc}`}}
                   onMouseEnter={e=>e.currentTarget.style.background='var(--bgch)'}
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                   {/* Image */}
-                  <div style={{width:54,height:54,borderRadius:10,flexShrink:0,overflow:'hidden',border:'1px solid var(--bdr)',background:'var(--bg3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>
+                  <div style={{width:54,height:54,borderRadius:10,flexShrink:0,overflow:'hidden',border:`1px solid ${icc}44`,background:'var(--bg3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>
                     {i.imageUrl?<img src={i.imageUrl} alt={i.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:'📦'}
                   </div>
                   {/* Info */}
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:14,fontWeight:700,color:'var(--txt)',marginBottom:3}}>{i.name}</div>
                     <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-                      <span className="bdg bdg-gr">{i.category}</span>
+                      <span style={{fontSize:9,fontFamily:'var(--fc)',fontWeight:700,color:icc,background:`${icc}18`,border:`1px solid ${icc}44`,borderRadius:3,padding:'1px 6px',textTransform:'uppercase',letterSpacing:'.06em'}}>{i.category}</span>
                       {wh&&<span style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--txtm)',display:'flex',alignItems:'center',gap:4}}>
                         <span style={{width:7,height:7,borderRadius:'50%',background:wh.color,display:'inline-block'}}></span>
                         {wh.name}
@@ -1663,7 +1862,7 @@ function Storage({currentUser,perms}){
                   </div>
                   {/* Qty big */}
                   <div style={{textAlign:'right',flexShrink:0,minWidth:80}}>
-                    <div style={{fontSize:28,fontWeight:800,color:'var(--txt)',lineHeight:1}}>{i.qty}</div>
+                    <div style={{fontSize:28,fontWeight:800,color:icc,lineHeight:1}}>{i.qty}</div>
                     <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)',marginTop:2}}>unité{i.qty!==1?'s':''}</div>
                   </div>
                   {/* Actions */}
