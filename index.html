@@ -874,6 +874,7 @@ function Four({currentUser,perms}){
   const[transLog,setTransLog]=useState([]);
   const[catFilter,setCatFilter]=useState('all');
   const[search,setSearch]=useState('');
+  const[itemsDb,setItemsDb]=useState([]);
   const emptyItem={name:'',buyPrice:'',sellPrice:'',category:'Drogue',unit:'unité',imageUrl:'',linkedWarehouseId:'',linkedWarehouseAuto:false};
   const[itemForm,setItemForm]=useState(emptyItem);
   const[buyQty,setBuyQty]=useState(1);
@@ -890,7 +891,8 @@ function Four({currentUser,perms}){
     const u3=fbLsn('four_transactions',d=>setTransLog(d.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0))));
     const u4=fbLsn('warehouses',setWarehouses);
     const u5=fbLsn('storage_items',d=>{setStorageItems(d);items_storage_ref.current=d;});
-    return()=>{u1();u2();u3();u4();u5();};
+    const u6=fbLsn('items_db',setItemsDb);
+    return()=>{u1();u2();u3();u4();u5();u6();};
   },[]);
 
   if(!perms.four_view)return<AccessDenied/>;
@@ -1066,7 +1068,15 @@ function Four({currentUser,perms}){
       {showAddItem&&<Modal title="Nouveau Produit" onClose={()=>setShowAddItem(false)} footer={<><button className="btn btn-s" onClick={()=>setShowAddItem(false)}>Annuler</button><button className="btn btn-p" onClick={addItem}>Ajouter</button></>} wide>
         <div style={{display:'flex',gap:16}}>
           <div style={{flex:1}}>
-            <div className="fg"><label className="lbl">NOM</label><input className="inp" value={itemForm.name} onChange={e=>setItemForm({...itemForm,name:e.target.value})} placeholder="Ex: Kit médical"/></div>
+            <div className="fg"><label className="lbl">NOM</label><input className="inp" value={itemForm.name} onChange={e=>{
+              const name=e.target.value;
+              const match=itemsDb.find(d=>d.name.toLowerCase()===name.toLowerCase());
+              if(match){setItemForm({...itemForm,name,category:match.category,imageUrl:match.imageUrl||itemForm.imageUrl});}
+              else{setItemForm({...itemForm,name});}
+            }} placeholder="Ex: Kit médical"/>
+            {itemForm.name&&itemsDb.find(d=>d.name.toLowerCase()===itemForm.name.toLowerCase())&&(
+              <div style={{background:'var(--accf)',border:'1px solid rgba(200,202,212,.2)',borderRadius:'var(--r)',padding:'6px 10px',fontSize:10,fontFamily:'var(--fc)',color:'var(--acc)',marginTop:-6,marginBottom:8}}>✓ Item trouvé dans la DB — catégorie et image auto-remplies</div>
+            )}</div>
             <div className="fg"><label className="lbl">CATÉGORIE</label><select className="sel" value={itemForm.category} onChange={e=>setItemForm({...itemForm,category:e.target.value})}>{FOUR_CATS_ALL.map(c=><option key={c}>{c}</option>)}</select></div>
             <div className="fg"><label className="lbl">UNITÉ</label><input className="inp" value={itemForm.unit} onChange={e=>setItemForm({...itemForm,unit:e.target.value})} placeholder="sachet, kg, unité..."/></div>
             <div className="g2">
