@@ -860,6 +860,17 @@ function Etiquette({item,warehouses,storageItems,perms,onBuy,onSell,onEdit,onDel
   );
 }
 
+
+// Recalcule et met à jour four_items.stock depuis la somme des storage_items du même nom
+const syncFourStock=async(itemName,fourItemsList,storageItemsList)=>{
+  const fourMatch=fourItemsList.find(fi=>fi.name.toLowerCase()===itemName.toLowerCase());
+  if(!fourMatch)return;
+  const total=storageItemsList.filter(si=>si.name.toLowerCase()===itemName.toLowerCase()).reduce((s,i)=>s+(Number(i.qty)||0),0);
+  if((fourMatch.stock||0)!==total){
+    await fbSet('four_items',fourMatch.id,{stock:total});
+  }
+};
+
 function Four({currentUser,perms}){
   const[items,setItems]=useState([]);
   const[storageItems,setStorageItems]=useState([]);
@@ -919,13 +930,17 @@ function Four({currentUser,perms}){
     await ensureT();
     const cost=showBuy.buyPrice*qty;
     if(tAmount<cost){alert(`Trésorerie insuffisante! Disponible: ${fmtMoney(tAmount)}, Coût: ${fmtMoney(cost)}`);return;}
-    await fbSet('four_items',showBuy.id,{stock:(showBuy.stock||0)+qty,totalBought:(showBuy.totalBought||0)+qty});
+    await fbSet('four_items',showBuy.id,{totalBought:(showBuy.totalBought||0)+qty});
     await fbSet('treasury','main',{amount:tAmount-cost});
     await fbAdd('four_transactions',{type:'achat',item:showBuy.name,qty,price:showBuy.buyPrice,total:cost,by:currentUser.pseudo,date:fmtDate()});
     const targetWh=buyWarehouse||(showBuy.linkedWarehouseAuto?showBuy.linkedWarehouseId:'');
     if(targetWh){
       await fbAdd('storage_items',{name:showBuy.name,category:showBuy.category||'Autre',qty,warehouseId:targetWh,addedBy:`[Four] ${currentUser.pseudo}`,date:fmtDate(),imageUrl:showBuy.imageUrl||'',note:`Achat depuis le Four`});
     }
+    // Recalcul stock Four depuis stockage
+    const allSt=[...items_storage_ref.current];
+    if(targetWh)allSt.push({name:showBuy.name,qty});
+    await syncFourStock(showBuy.name,[...items,showBuy],allSt);
     pushLog('stock',`Achat: ${qty}x ${showBuy.name} ${fmtMoney(cost)} par ${currentUser.pseudo}`,'warn','four');
     setShowBuy(null);setBuyQty(1);setBuyWarehouse('');
   };
@@ -952,6 +967,15 @@ function Four({currentUser,perms}){
         remaining-=take;
       }
     }
+    // Recalcul stock Four depuis ce qu'il reste dans storage
+    const remaining2=items_storage_ref.current.map(si=>{
+      if(si.name.toLowerCase()!==showSell.name.toLowerCase())return si;
+      if(si.warehouseId!==effectiveWh)return si;
+      return null;
+    }).filter(Boolean);
+    // Recalcul propre via helper avec snapshot mis à jour
+    const updatedStorage=items_storage_ref.current.filter(si=>!(si.name.toLowerCase()===showSell.name.toLowerCase()&&si.warehouseId===effectiveWh));
+    await syncFourStock(showSell.name,items,updatedStorage);
     pushLog('stock',`Vente: ${qty}x ${showSell.name} ${fmtMoney(gain)} par ${currentUser.pseudo}`,'info','four');
     setShowSell(null);setSellQty(1);setSellPrice2('');setSellWarehouse('');
   };
@@ -1892,47 +1916,33 @@ function Storage({currentUser,perms}){
 
   const addItem=async()=>{
     if(!itemForm.name||!itemForm.warehouseId)return;
-    await fbAdd('storage_items',{...itemForm,qty:Number(itemForm.qty)||1,addedBy:currentUser.pseudo,date:fmtDate()});
-    // Sync four : si un produit du four porte le même nom, on met à jour son stock
-    const fourMatch=fourItems.find(fi=>fi.name.toLowerCase()===itemForm.name.toLowerCase());
-    if(fourMatch){
-      await fbSet('four_items',fourMatch.id,{stock:(fourMatch.stock||0)+Number(itemForm.qty||1)});
-      pushLog('stock',`Sync Four: +${itemForm.qty}x ${itemForm.name} depuis stockage`,'info');
-    }
-    pushLog('stock',`Objet ajouté: ${itemForm.qty}x ${itemForm.name}`,'info');
+    const addedQty=Number(itemForm.qty)||1;
+    await fbAdd('storage_items',{...itemForm,qty:addedQty,addedBy:currentUser.pseudo,date:fmtDate()});
+    // Recalcul stock Four = somme storage
+    const updatedStorage=[...items,{name:itemForm.name,qty:addedQty,warehouseId:itemForm.warehouseId}];
+    await syncFourStock(itemForm.name,fourItems,updatedStorage);
+    pushLog('stock',`Objet ajouté: ${addedQty}x ${itemForm.name}`,'info');
     setShowItem(false);setItemForm({name:'',category:'Matériel',qty:1,warehouseId:'',note:'',imageUrl:''});
   };
 
   const saveEditItem=async()=>{
     if(!editItem)return;
-    const oldItem=items.find(i=>i.id===editItem.id);
     const{id,...d}=editItem;
     const newQty=Number(d.qty)||0;
     await fbSet('storage_items',id,{name:d.name,category:d.category,qty:newQty,note:d.note||'',imageUrl:d.imageUrl||''});
-    // Sync four si même nom
-    if(oldItem){
-      const diff=newQty-(oldItem.qty||0);
-      if(diff!==0){
-        const fourMatch=fourItems.find(fi=>fi.name.toLowerCase()===oldItem.name.toLowerCase());
-        if(fourMatch){
-          const newStock=Math.max(0,(fourMatch.stock||0)+diff);
-          await fbSet('four_items',fourMatch.id,{stock:newStock});
-        }
-      }
-    }
+    // Recalcul stock Four = somme storage mise à jour
+    const updatedStorage=items.map(i=>i.id===id?{...i,qty:newQty,name:d.name}:i);
+    await syncFourStock(d.name,fourItems,updatedStorage);
     setEditItem(null);
   };
 
   const delItem=async id=>{
     const item=items.find(i=>i.id===id);
     await fbDel('storage_items',id);
-    // Sync four à la suppression
+    // Recalcul stock Four = somme storage sans l'item supprimé
     if(item){
-      const fourMatch=fourItems.find(fi=>fi.name.toLowerCase()===item.name.toLowerCase());
-      if(fourMatch){
-        const newStock=Math.max(0,(fourMatch.stock||0)-item.qty);
-        await fbSet('four_items',fourMatch.id,{stock:newStock});
-      }
+      const updatedStorage=items.filter(i=>i.id!==id);
+      await syncFourStock(item.name,fourItems,updatedStorage);
     }
   };
 
