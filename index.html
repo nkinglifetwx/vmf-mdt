@@ -207,26 +207,47 @@ const AVATAR_EMOJIS=['👤','💀','🐺','🦁','🐉','🦅','⚡','🔥','�
 const AVATAR_COLORS=['#c0392b','#c9a84c','#00d084','#60a5fa','#a78bfa','#f97316','#ec4899','#14b8a6','#64748b','#c8cad4','#ef4444','#8b5cf6'];
 
 const ALL_PERMS={
+  // Membres
   members_view:{label:'👥 Voir les membres',cat:'Membres'},
   members_add:{label:'👥 Ajouter un membre',cat:'Membres'},
-  members_edit:{label:'👥 Modifier une fiche',cat:'Membres'},
+  members_edit:{label:'👥 Modifier une fiche membre',cat:'Membres'},
+  members_delete:{label:'👥 Supprimer un membre',cat:'Membres'},
+  // Armes
   weapons_view:{label:'🗡 Voir les armes',cat:'Armes'},
   weapons_add:{label:'🗡 Déclarer une arme',cat:'Armes'},
   weapons_delete:{label:'🗡 Supprimer une arme',cat:'Armes'},
+  // Dettes
   debts_view:{label:'💰 Voir les dettes',cat:'Dettes'},
-  debts_manage:{label:'💰 Créer/gérer les dettes',cat:'Dettes'},
+  debts_manage:{label:'💰 Créer/modifier les dettes',cat:'Dettes'},
+  debts_delete:{label:'💰 Supprimer une dette',cat:'Dettes'},
+  // Véhicules
   vehicles_view:{label:'🚗 Voir les véhicules',cat:'Véhicules'},
   vehicles_add:{label:'🚗 Ajouter un véhicule',cat:'Véhicules'},
+  vehicles_delete:{label:'🚗 Supprimer un véhicule',cat:'Véhicules'},
+  // Trésorerie
+  treasury_view:{label:'🏦 Voir la trésorerie',cat:'Trésorerie'},
+  treasury_deposit:{label:'🏦 Déposer de l'argent',cat:'Trésorerie'},
+  treasury_withdraw:{label:'🏦 Retirer de l'argent',cat:'Trésorerie'},
+  treasury_set:{label:'🏦 Définir le montant exact',cat:'Trésorerie'},
+  // Stockage
   storage_view:{label:'🏭 Voir le stockage',cat:'Stockage'},
-  storage_manage:{label:'🏭 Gérer le stockage',cat:'Stockage'},
+  storage_add:{label:'🏭 Ajouter un objet',cat:'Stockage'},
+  storage_edit:{label:'🏭 Modifier un objet',cat:'Stockage'},
+  storage_delete:{label:'🏭 Supprimer un objet',cat:'Stockage'},
+  storage_warehouse:{label:'🏭 Gérer les entrepôts',cat:'Stockage'},
+  // Four
   four_view:{label:'🍖 Voir le four',cat:'Four'},
   four_buy:{label:'🍖 Acheter des lots',cat:'Four'},
   four_sell:{label:'🍖 Enregistrer une vente',cat:'Four'},
-  four_manage:{label:'🍖 Gérer les produits',cat:'Four'},
+  four_manage:{label:'🍖 Gérer les produits du four',cat:'Four'},
+  // Annonces
   announcements_view:{label:'📢 Voir les annonces',cat:'Annonces'},
   announcements_post:{label:'📢 Publier une annonce',cat:'Annonces'},
+  announcements_delete:{label:'📢 Supprimer une annonce',cat:'Annonces'},
+  // Chat
   chat_read:{label:'💬 Lire le chat',cat:'Chat'},
   chat_write:{label:'💬 Écrire dans le chat',cat:'Chat'},
+  // Autres
   logs_view:{label:'📋 Voir les logs',cat:'Logs'},
   items_view:{label:'📦 Voir la DB items',cat:'Items'},
   items_manage:{label:'📦 Gérer la DB items',cat:'Items'},
@@ -239,9 +260,42 @@ const ALL_TRUE=Object.fromEntries(Object.keys(ALL_PERMS).map(k=>[k,true]));
 const DEFAULT_PERMS={
   Heritier:ALL_TRUE,
   Regent:{...ALL_TRUE,logs_view:false,flappy_access:false},
-  Senechaux:{members_view:true,members_add:false,members_edit:false,weapons_view:true,weapons_add:true,weapons_delete:false,debts_view:true,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:true,storage_manage:true,four_view:true,four_buy:false,four_sell:true,four_manage:false,announcements_view:true,announcements_post:true,chat_read:true,chat_write:true,logs_view:false,map_view:true,items_view:true,items_manage:false,webhooks_manage:false,flappy_access:false},
-  Syndic:{members_view:true,members_add:false,members_edit:false,weapons_view:true,weapons_add:false,weapons_delete:false,debts_view:true,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:true,storage_manage:false,four_view:true,four_buy:false,four_sell:true,four_manage:false,announcements_view:true,announcements_post:false,chat_read:true,chat_write:true,logs_view:false,map_view:true,items_view:true,items_manage:false,webhooks_manage:false,flappy_access:false},
-  Collaborateur:{members_view:true,members_add:false,members_edit:false,weapons_view:false,weapons_add:false,weapons_delete:false,debts_view:false,debts_manage:false,vehicles_view:true,vehicles_add:false,storage_view:false,storage_manage:false,four_view:true,four_buy:false,four_sell:false,four_manage:false,announcements_view:true,announcements_post:false,chat_read:true,chat_write:true,logs_view:false,map_view:true,items_view:false,items_manage:false,webhooks_manage:false,flappy_access:false},
+  Senechaux:{
+    members_view:true,members_add:false,members_edit:false,members_delete:false,
+    weapons_view:true,weapons_add:true,weapons_delete:false,
+    debts_view:true,debts_manage:true,debts_delete:false,
+    vehicles_view:true,vehicles_add:false,vehicles_delete:false,
+    treasury_view:true,treasury_deposit:false,treasury_withdraw:false,treasury_set:false,
+    storage_view:true,storage_add:true,storage_edit:true,storage_delete:false,storage_warehouse:false,
+    four_view:true,four_buy:false,four_sell:true,four_manage:false,
+    announcements_view:true,announcements_post:true,announcements_delete:false,
+    chat_read:true,chat_write:true,logs_view:false,
+    items_view:true,items_manage:false,map_view:true,webhooks_manage:false,flappy_access:false,
+  },
+  Syndic:{
+    members_view:true,members_add:false,members_edit:false,members_delete:false,
+    weapons_view:true,weapons_add:false,weapons_delete:false,
+    debts_view:true,debts_manage:false,debts_delete:false,
+    vehicles_view:true,vehicles_add:false,vehicles_delete:false,
+    treasury_view:true,treasury_deposit:false,treasury_withdraw:false,treasury_set:false,
+    storage_view:true,storage_add:false,storage_edit:false,storage_delete:false,storage_warehouse:false,
+    four_view:true,four_buy:false,four_sell:true,four_manage:false,
+    announcements_view:true,announcements_post:false,announcements_delete:false,
+    chat_read:true,chat_write:true,logs_view:false,
+    items_view:true,items_manage:false,map_view:true,webhooks_manage:false,flappy_access:false,
+  },
+  Collaborateur:{
+    members_view:true,members_add:false,members_edit:false,members_delete:false,
+    weapons_view:false,weapons_add:false,weapons_delete:false,
+    debts_view:false,debts_manage:false,debts_delete:false,
+    vehicles_view:true,vehicles_add:false,vehicles_delete:false,
+    treasury_view:false,treasury_deposit:false,treasury_withdraw:false,treasury_set:false,
+    storage_view:false,storage_add:false,storage_edit:false,storage_delete:false,storage_warehouse:false,
+    four_view:true,four_buy:false,four_sell:false,four_manage:false,
+    announcements_view:true,announcements_post:false,announcements_delete:false,
+    chat_read:true,chat_write:true,logs_view:false,
+    items_view:false,items_manage:false,map_view:true,webhooks_manage:false,flappy_access:false,
+  },
 };
 
 const gradeColor=g=>({Heritier:'#e87060',Regent:'#c9a84c',Senechaux:'#00d084',Syndic:'#60a5fa',Collaborateur:'#7a90a8'}[g]||'#7a90a8');
@@ -575,9 +629,9 @@ function Members({currentUser,perms}){
                 <td><span style={{fontFamily:'var(--fc)',fontSize:11}}>{m.phone||'—'}</span></td>
                 <td>{isOnline(m.id)?<span className="bdg bdg-g">● En ligne</span>:<span className="bdg bdg-gr">○ Hors ligne</span>}</td>
                 <td><span style={{fontSize:11,fontFamily:'var(--fc)'}}>{m.joined}</span></td>
-                {perms.members_edit&&<td><div style={{display:'flex',gap:4}}>
+                {(perms.members_edit||perms.members_delete)&&<td><div style={{display:'flex',gap:4}}>
                   <button className="btn btn-s btn-sm" onClick={()=>setEditM({...m})}>✏</button>
-                  {currentUser.grade==='Heritier'&&m.id!==currentUser.id&&<button className="btn btn-d btn-sm" onClick={()=>delMember(m.id)}>🗑</button>}
+                  {perms.members_delete&&m.id!==currentUser.id&&<button className="btn btn-d btn-sm" onClick={()=>delMember(m.id)}>🗑</button>}
                 </div></td>}
               </tr>
             ))}
@@ -712,7 +766,7 @@ function Debts({currentUser,perms}){
                 </td>
                 <td><div style={{display:'flex',gap:4}}>
                   {d.status!=='payé'&&perms.debts_manage&&<button className="btn btn-s btn-sm" onClick={()=>{setRembModal(d.id);setRAmt('');}}>+ Remb.</button>}
-                  {perms.debts_manage&&<button className="btn btn-d btn-sm" onClick={()=>delDebt(d.id)}>🗑</button>}
+                  {perms.debts_delete&&<button className="btn btn-d btn-sm" onClick={()=>delDebt(d.id)}>🗑</button>}
                 </div></td>
               </tr>
             ))}
@@ -782,7 +836,7 @@ function Vehicles({currentUser,perms}){
                 <td style={{fontSize:11,color:'var(--txtm)',fontFamily:'var(--fc)'}}>{(v.usage||[]).length>0?v.usage[v.usage.length-1]:'—'}</td>
                 <td><div style={{display:'flex',gap:4}}>
                   <button className={`btn btn-sm ${v.lastUsedBy===selUser?'btn-g':'btn-s'}`} onClick={()=>claim(v.id)}>{v.lastUsedBy===selUser?`✓ ${selUser}`:`→ ${selUser}`}</button>
-                  {currentUser.grade==='Heritier'&&<button className="btn btn-d btn-sm" onClick={()=>del(v.id)}>🗑</button>}
+                  {perms.vehicles_delete&&<button className="btn btn-d btn-sm" onClick={()=>del(v.id)}>🗑</button>}
                 </div></td>
               </tr>
             ))}
@@ -1017,17 +1071,17 @@ function Four({currentUser,perms}){
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
           <div>
             <div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--gold)',letterSpacing:'.12em',marginBottom:6}}>TRÉSORERIE DU GROUPE</div>
-            <div style={{fontSize:30,fontWeight:800,color:'var(--gold)',lineHeight:1}}>{fmtMoney(tAmount)}</div>
+            <div style={{fontSize:30,fontWeight:800,color:'var(--gold)',lineHeight:1}}>{perms.treasury_view?fmtMoney(tAmount):'$ ••••••'}</div>
             <div style={{display:'flex',gap:20,marginTop:10}}>
               <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>REVENUS</div><div style={{fontSize:12,fontFamily:'var(--fc)',color:'var(--green)',fontWeight:700}}>{fmtMoney(totalRevenue)}</div></div>
               <div><div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)'}}>DÉPENSES</div><div style={{fontSize:12,fontFamily:'var(--fc)',color:'#e87060',fontWeight:700}}>{fmtMoney(totalSpent)}</div></div>
             </div>
           </div>
-          {(currentUser.grade==='Heritier'||currentUser.grade==='Regent')&&(
+          {(perms.treasury_deposit||perms.treasury_withdraw||perms.treasury_set)&&(
             <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-              <button className="btn btn-g btn-sm" onClick={()=>{setShowManualT('add');setManualAmt('');setManualReason('');}}>+ Ajouter</button>
-              <button className="btn btn-d btn-sm" onClick={()=>{setShowManualT('remove');setManualAmt('');setManualReason('');}}>− Retirer</button>
-              <button className="btn btn-s btn-sm" onClick={()=>{setShowManualT('set');setManualAmt(String(tAmount));setManualReason('');}}>✏ Définir</button>
+              {perms.treasury_deposit&&<button className="btn btn-g btn-sm" onClick={()=>{setShowManualT('add');setManualAmt('');setManualReason('');}}>+ Déposer</button>}
+              {perms.treasury_withdraw&&<button className="btn btn-d btn-sm" onClick={()=>{setShowManualT('remove');setManualAmt('');setManualReason('');}}>− Retirer</button>}
+              {perms.treasury_set&&<button className="btn btn-s btn-sm" onClick={()=>{setShowManualT('set');setManualAmt(String(tAmount));setManualReason('');}}>✏ Définir</button>}
             </div>
           )}
         </div>
@@ -1765,7 +1819,8 @@ function Announcements({currentUser,perms}){
             <div style={{fontSize:12,fontWeight:700,color:'var(--txt)'}}>{a.title}</div>
             <div style={{display:'flex',gap:5,flexShrink:0}}>
               <span className={`bdg ${a.priority==='high'?'bdg-r':a.priority==='medium'?'bdg-gd':'bdg-gr'}`}>{a.priority==='high'?'URGENT':a.priority==='medium'?'IMPORTANT':'INFO'}</span>
-              {(currentUser.grade==='Heritier'||a.author===currentUser.pseudo)&&<><button className="btn btn-s btn-sm" onClick={()=>setEditA({...a})}>✏</button><button className="btn btn-d btn-sm" onClick={()=>del(a.id)}>🗑</button></>}
+              {(perms.announcements_post&&a.author===currentUser.pseudo||perms.announcements_delete)&&<button className="btn btn-s btn-sm" onClick={()=>setEditA({...a})}>✏</button>}
+              {(perms.announcements_delete||a.author===currentUser.pseudo&&perms.announcements_post)&&<button className="btn btn-d btn-sm" onClick={()=>del(a.id)}>🗑</button>}
             </div>
           </div>
           <div style={{fontSize:11,color:'var(--txt2)',lineHeight:1.6,marginTop:6}}>{a.content}</div>
@@ -1968,7 +2023,7 @@ function Storage({currentUser,perms}){
       <div style={{marginBottom:14}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
           <div style={{fontSize:11,fontWeight:700,letterSpacing:'.1em',color:'var(--txt)',textTransform:'uppercase'}}>🏭 Entrepôts</div>
-          {perms.storage_manage&&<button className="btn btn-p btn-sm" onClick={()=>setShowWh(true)}>+ Ajouter</button>}
+          {perms.storage_warehouse&&<button className="btn btn-p btn-sm" onClick={()=>setShowWh(true)}>+ Ajouter</button>}
         </div>
         {(()=>{
           const total=sortedWarehouses.length+1; // +1 for "all" tab
@@ -1995,8 +2050,8 @@ function Storage({currentUser,perms}){
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:compact?3:6}}>
                       <div style={{width:8,height:8,borderRadius:'50%',background:w.color,marginTop:2,flexShrink:0}}></div>
                       {!compact&&<div style={{display:'flex',gap:3}} onClick={e=>e.stopPropagation()}>
-                        {perms.storage_manage&&<button className="btn btn-s btn-sm" style={{padding:'2px 6px',fontSize:10}} onClick={()=>setEditWh({...w})}>✏</button>}
-                        {perms.storage_manage&&currentUser.grade==='Heritier'&&<button className="btn btn-d btn-sm" style={{padding:'2px 6px',fontSize:10}} onClick={()=>delWh(w.id)}>🗑</button>}
+                        {perms.storage_warehouse&&<button className="btn btn-s btn-sm" style={{padding:'2px 6px',fontSize:10}} onClick={()=>setEditWh({...w})}>✏</button>}
+                        {perms.storage_warehouse&&<button className="btn btn-d btn-sm" style={{padding:'2px 6px',fontSize:10}} onClick={()=>delWh(w.id)}>🗑</button>}
                       </div>}
                       {compact&&<div style={{display:'flex',gap:2}} onClick={e=>e.stopPropagation()}>
                         {perms.storage_manage&&<button className="btn btn-s btn-sm" style={{padding:'1px 4px',fontSize:9}} onClick={()=>setEditWh({...w})}>✏</button>}
@@ -2024,7 +2079,7 @@ function Storage({currentUser,perms}){
         <div className="ch">
           <span className="ct">📦 Inventaire{selWh?' — '+warehouses.find(w=>w.id===selWh)?.name:''}</span>
           <span className="csub">{visible.length} objet{visible.length!==1?'s':''}</span>
-          {perms.storage_manage&&<button className="btn btn-p btn-sm" style={{marginLeft:8}} onClick={()=>setShowItem(true)}>+ Ajouter</button>}
+          {perms.storage_add&&<button className="btn btn-p btn-sm" style={{marginLeft:8}} onClick={()=>setShowItem(true)}>+ Ajouter</button>}
         </div>
         {/* Filters + search */}
         <div style={{padding:'8px 14px',borderBottom:'1px solid var(--bdr)',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
@@ -2072,7 +2127,7 @@ function Storage({currentUser,perms}){
                     <div style={{fontSize:9,fontFamily:'var(--fc)',color:'var(--txtm)',marginTop:2}}>unité{i.qty!==1?'s':''}</div>
                   </div>
                   {/* Actions */}
-                  {perms.storage_manage&&<div style={{display:'flex',gap:5,flexShrink:0}}>
+                  {(perms.storage_edit||perms.storage_delete)&&<div style={{display:'flex',gap:5,flexShrink:0}}>
                     <button className="btn btn-s btn-sm" onClick={()=>setEditItem({...i})}>✏</button>
                     <button className="btn btn-d btn-sm" onClick={()=>delItem(i.id)}>🗑</button>
                   </div>}
