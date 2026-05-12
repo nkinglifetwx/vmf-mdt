@@ -946,6 +946,7 @@ function Four({currentUser,perms}){
   const[buyWarehouse,setBuyWarehouse]=useState('');
   const[sellQty,setSellQty]=useState(1);
   const[sellPrice2,setSellPrice2]=useState('');
+  const[buyPrice2,setBuyPrice2]=useState('');
   const[sellWarehouse,setSellWarehouse]=useState('');
   const[manualAmt,setManualAmt]=useState('');
   const[manualReason,setManualReason]=useState('');
@@ -982,11 +983,12 @@ function Four({currentUser,perms}){
     const qty=parseInt(buyQty)||1;
     if(!showBuy||qty<=0)return;
     await ensureT();
-    const cost=showBuy.buyPrice*qty;
+    const bprice=buyPrice2===''?showBuy.buyPrice:parseInt(buyPrice2)||0;
+    const cost=bprice*qty;
     if(tAmount<cost){alert(`Trésorerie insuffisante! Disponible: ${fmtMoney(tAmount)}, Coût: ${fmtMoney(cost)}`);return;}
     await fbSet('four_items',showBuy.id,{totalBought:(showBuy.totalBought||0)+qty});
     await fbSet('treasury','main',{amount:tAmount-cost});
-    await fbAdd('four_transactions',{type:'achat',item:showBuy.name,qty,price:showBuy.buyPrice,total:cost,by:currentUser.pseudo,date:fmtDate()});
+    await fbAdd('four_transactions',{type:'achat',item:showBuy.name,qty,price:bprice,total:cost,by:currentUser.pseudo,date:fmtDate()});
     const targetWh=buyWarehouse||(showBuy.linkedWarehouseAuto?showBuy.linkedWarehouseId:'');
     if(targetWh){
       await fbAdd('storage_items',{name:showBuy.name,category:showBuy.category||'Autre',qty,warehouseId:targetWh,addedBy:`[Four] ${currentUser.pseudo}`,date:fmtDate(),imageUrl:showBuy.imageUrl||'',note:`Achat depuis le Four`});
@@ -996,12 +998,12 @@ function Four({currentUser,perms}){
     if(targetWh)allSt.push({name:showBuy.name,qty});
     await syncFourStock(showBuy.name,[...items,showBuy],allSt);
     pushLog('stock',`Achat: ${qty}x ${showBuy.name} ${fmtMoney(cost)} par ${currentUser.pseudo}`,'warn','four');
-    setShowBuy(null);setBuyQty(1);setBuyWarehouse('');
+    setShowBuy(null);setBuyQty(1);setBuyWarehouse('');setBuyPrice2('');
   };
 
   const sellItem=async()=>{
     const qty=parseInt(sellQty)||1;
-    const sprice=parseInt(sellPrice2)||showSell.sellPrice;
+    const sprice=sellPrice2===''?showSell.sellPrice:parseInt(sellPrice2)||0;
     if(!showSell||qty<=0)return;
     if(qty>(showSell.stock||0)){alert('Stock insuffisant!');return;}
     await ensureT();
@@ -1105,7 +1107,7 @@ function Four({currentUser,perms}){
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:10,marginBottom:20}}>
           {filteredItems.map(item=>(
             <Etiquette key={item.id} item={item} warehouses={warehouses} storageItems={storageItems} perms={perms}
-              onBuy={it=>{setShowBuy(it);setBuyQty(1);}}
+              onBuy={it=>{setShowBuy(it);setBuyQty(1);setBuyPrice2('');}}
               onSell={it=>{setShowSell(it);setSellQty(1);setSellPrice2('');}}
               onEdit={it=>setShowEditItem({...it})}
               onDel={delItem}
@@ -1231,6 +1233,7 @@ function Four({currentUser,perms}){
           </div>
         </div>
         <div className="fg"><label className="lbl">QUANTITÉ</label><input type="number" className="inp" min="1" value={buyQty} onChange={e=>setBuyQty(e.target.value)} autoFocus/></div>
+        <div className="fg"><label className="lbl">PRIX D'ACHAT RÉEL (vide = prix suggéré)</label><input type="number" className="inp" min="0" value={buyPrice2} onChange={e=>setBuyPrice2(e.target.value)} placeholder={String(showBuy.buyPrice)}/></div>
         <div className="fg">
           <label className="lbl">DÉPOSER DANS UN ENTREPÔT</label>
           <select className="sel" value={buyWarehouse} onChange={e=>setBuyWarehouse(e.target.value)}>
@@ -1240,10 +1243,10 @@ function Four({currentUser,perms}){
             ))}
           </select>
         </div>
-        {buyQty>0&&<div style={{background:tAmount<showBuy.buyPrice*parseInt(buyQty||1)?'var(--redf)':'var(--greenf)',border:`1px solid ${tAmount<showBuy.buyPrice*parseInt(buyQty||1)?'rgba(192,57,43,.3)':'rgba(0,208,132,.3)'}`,borderRadius:'var(--r)',padding:'9px 12px',fontSize:12,fontFamily:'var(--fc)',display:'flex',justifyContent:'space-between'}}>
-          <span>Coût total:</span>
-          <span style={{fontWeight:700,color:tAmount<showBuy.buyPrice*parseInt(buyQty||1)?'#e87060':'var(--green)'}}>{fmtMoney(showBuy.buyPrice*parseInt(buyQty||1))}</span>
-        </div>}
+        {buyQty>0&&(()=>{const bp=buyPrice2===''?showBuy.buyPrice:parseInt(buyPrice2)||0;const total=bp*parseInt(buyQty||1);const broke=tAmount<total;return(<div style={{background:broke?'var(--redf)':'var(--greenf)',border:`1px solid ${broke?'rgba(192,57,43,.3)':'rgba(0,208,132,.3)'}`,borderRadius:'var(--r)',padding:'9px 12px',fontSize:12,fontFamily:'var(--fc)',display:'flex',justifyContent:'space-between'}}>
+          <span>Coût total :</span>
+          <span style={{fontWeight:700,color:broke?'#e87060':'var(--green)'}}>{fmtMoney(total)}</span>
+        </div>);})()}
       </Modal>}
 
       {/* Modal vente */}
@@ -1272,7 +1275,7 @@ function Four({currentUser,perms}){
               {whsWithStock.length===1&&!sellWarehouse&&<div style={{fontSize:10,fontFamily:'var(--fc)',color:'var(--green)',marginTop:4}}>✓ Entrepôt auto détecté : {warehouses.find(w=>w.id===defaultWh)?.name}</div>}
             </div>
             {sellQty>0&&<div style={{background:'var(--greenf)',border:'1px solid rgba(0,208,132,.3)',borderRadius:'var(--r)',padding:'9px 12px',fontSize:12,fontFamily:'var(--fc)',display:'flex',justifyContent:'space-between'}}>
-              <span>Gain total:</span><span style={{fontWeight:700,color:'var(--green)'}}>{fmtMoney((parseInt(sellPrice2)||showSell.sellPrice)*parseInt(sellQty||1))}</span>
+              <span>Gain total:</span><span style={{fontWeight:700,color:'var(--green)'}}>{fmtMoney((sellPrice2===''?showSell.sellPrice:parseInt(sellPrice2)||0)*parseInt(sellQty||1))}</span>
             </div>}
           </Modal>
         );
